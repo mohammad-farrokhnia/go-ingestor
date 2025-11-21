@@ -1,0 +1,15 @@
+server:
+  grpc_port: 50051
+  http_port: 8080
+  ingest_enabled: true
+
+ingestor:
+  buffer_size: 1000
+
+worker:
+  num_workers: 5
+  batch_size: 100
+  batch_timeout: "5s"
+
+sinks:
+  active: ["log"]
