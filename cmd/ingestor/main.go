@@ -7,6 +7,7 @@ import (
 
 	"github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
@@ -21,8 +22,13 @@ func main() {
 
 	log.Printf("Starting go-ingestor on port %d with buffer size %d...",
 		cfg.Server.GrpcPort, cfg.Ingestor.BufferSize)
-
-	coreService := ingestor.NewService(cfg.Ingestor.BufferSize)
+	recorder := metrics.New()
+	httpServer, err := server.NewHttpServer(cfg.Server.HttpPort)
+	if err != nil {
+		log.Fatalf("Failed to create HTTP server: %v", err)
+	}
+	httpServer.Start()
+	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
 
 	mySinks := []sinks.Sink{
 		sinks.NewLogSink(),
@@ -34,6 +40,7 @@ func main() {
 		cfg.Worker.BatchSize,
 		cfg.Worker.BatchTimeout,
 		mySinks,
+		recorder,
 	)
 
 	address := fmt.Sprintf("127.0.0.1:%d", cfg.Server.GrpcPort)
@@ -43,7 +50,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	myGrpcHandler := server.NewGrpcServer(coreService)
+	myGrpcHandler := server.NewGrpcServer(coreService, recorder)
 	myGrpcHandler.Register(grpcServer)
 
 	log.Printf("gRPC server listening on %s", address)
