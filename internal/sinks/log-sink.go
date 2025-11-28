@@ -17,7 +17,7 @@ func (s *LogSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	log.Printf("[LogSink] Writing batch of %d events. First ID: %s\", len(batch), batch[0].EventId")
+	log.Printf("[LogSink] Writing batch of %d events. First ID: %s", len(batch), batch[0].EventId)
 	return nil
 }
 
