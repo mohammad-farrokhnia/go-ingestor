@@ -5,11 +5,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-func Start(numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink) {
+func Start(numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder) {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {
 		log.Fatalf("Invalid batch_timeout: %v", err)
@@ -18,11 +19,11 @@ func Start(numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batch
 	log.Printf("Starting %d workers (BatchSize: %d, Timeout: %s)...", numWorkers, batchSize, timeout)
 
 	for i := 0; i < numWorkers; i++ {
-		go runWorker(i, buffer, batchSize, timeout, sinkList)
+		go runWorker(i, buffer, batchSize, timeout, sinkList, recorder)
 	}
 }
 
-func runWorker(id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink) {
+func runWorker(id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder) {
 
 	batch := make([]*pb.IngestRequest, 0, batchSize)
 
@@ -35,27 +36,31 @@ func runWorker(id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout t
 			batch = append(batch, event)
 
 			if len(batch) >= batchSize {
-				flush(id, batch, sinkList)
+				flush(id, batch, sinkList, recorder)
 				batch = make([]*pb.IngestRequest, 0, batchSize)
 				ticker.Reset(timeout)
 			}
 
 		case <-ticker.C:
 			if len(batch) > 0 {
-				flush(id, batch, sinkList)
+				flush(id, batch, sinkList, recorder)
 				batch = make([]*pb.IngestRequest, 0, batchSize)
 			}
 		}
 	}
 }
 
-func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink) {
+func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recorder metrics.Recorder) {
 	ctx := context.Background()
-
+	start := time.Now()
 	for _, sink := range sinkList {
 		if err := sink.Write(ctx, batch); err != nil {
 			log.Printf("[WORKER %d] ERROR writing to %s: %v", workerID, sink.Name(), err)
 		}
+	}
+
+	if recorder != nil {
+		recorder.ObserveBatchFlush(time.Since(start).Seconds())
 	}
 
 	log.Printf("[WORKER %d] Flushed batch of %d events", workerID, len(batch))

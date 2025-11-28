@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 	"google.golang.org/grpc"
 )
@@ -12,11 +13,13 @@ import (
 type GrpcServer struct {
 	pb.UnimplementedIngestorServiceServer
 	ingestor *ingestor.Service
+	recorder metrics.Recorder
 }
 
-func NewGrpcServer(ingestor *ingestor.Service) *GrpcServer {
+func NewGrpcServer(i *ingestor.Service, r metrics.Recorder) *GrpcServer {
 	return &GrpcServer{
-		ingestor: ingestor,
+		ingestor: i,
+		recorder: r,
 	}
 }
 
