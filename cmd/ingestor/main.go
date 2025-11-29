@@ -30,8 +30,10 @@ func main() {
 	httpServer.Start()
 	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
 
-	mySinks := []sinks.Sink{
-		sinks.NewLogSink(),
+	mySinks, err := sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
+
+	if err != nil {
+		log.Fatalf("Failed to build sinks: %v", err)
 	}
 
 	worker.Start(

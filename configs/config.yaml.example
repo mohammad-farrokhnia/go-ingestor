@@ -12,7 +12,7 @@ worker:
   batch_timeout: "5s"
 
 sinks:
-  active: ["log", "kafka"]
+  active: ["log"]  # log, kafka, http
   kafka:
     brokers: ["localhost:9092"]
     topic: "events"

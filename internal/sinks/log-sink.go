@@ -9,7 +9,7 @@ import (
 
 type LogSink struct{}
 
-func NewLogSink() *LogSink {
+func newLogSink() *LogSink {
 	return &LogSink{}
 }
 

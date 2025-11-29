@@ -1,13 +1,40 @@
 package sinks
 
 import (
-	"context"
+	"fmt"
 
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 )
 
-type Sink interface {
-	Write(ctx context.Context, bathc []*pb.IngestRequest) error
-	Name() string
-	Close() error
+func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig) ([]Sink, error) {
+	var result []Sink
+
+	for _, name := range activeNames {
+		sink, err := BuildSink(name, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build sink %q: %w", name, err)
+		}
+		result = append(result, sink)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no sinks configured")
+	}
+
+	return result, nil
+}
+
+func BuildSink(name config.SinkType, cfg config.SinksConfig) (Sink, error) {
+	switch name {
+	case sinkLog:
+		return newLogSink(), nil
+	case sinkKafka:
+		// TODO: Task 2 - return NewKafkaSink(cfg.Kafka)
+		return nil, fmt.Errorf("kafka sink not implemented yet")
+	case sinkHTTP:
+		// TODO: Task 3 - return NewHTTPSink(cfg.HTTP)
+		return nil, fmt.Errorf("http sink not implemented yet")
+	default:
+		return nil, fmt.Errorf("unknown sink type: %s", name)
+	}
 }

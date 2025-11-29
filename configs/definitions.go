@@ -4,6 +4,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Ingestor IngestorConfig `mapstructure:"ingestor"`
 	Worker   WorkerConfig   `mapstructure:"worker"`
+	Sinks    SinksConfig    `mapstructure:"sinks"`
 }
 
 type ServerConfig struct {
@@ -22,6 +23,26 @@ type WorkerConfig struct {
 	BatchTimeout string `mapstructure:"batch_timeout"`
 }
 
-type SinkConfig struct {
-	Active bool `mapstructure:"active"`
+type KafkaConfig struct {
+	Brokers []string `mapstructure:"brokers"`
+	Topic   string   `mapstructure:"topic"`
 }
+
+type HTTPConfig struct {
+	URL     string `mapstructure:"url"`
+	Timeout string `mapstructure:"timeout"`
+}
+
+type SinksConfig struct {
+	Active []SinkType  `mapstructure:"active" json:"active,omitempty"`
+	Kafka  KafkaConfig `mapstructure:"kafka" json:"kafka"`
+	HTTP   HTTPConfig  `mapstructure:"http" json:"http"`
+}
+
+type SinkType string
+
+const (
+	SinkLog   SinkType = "log"
+	SinkKafka SinkType = "kafka"
+	SinkHTTP  SinkType = "http"
+)
