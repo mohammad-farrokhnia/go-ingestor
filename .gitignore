@@ -28,6 +28,8 @@ go.work.sum
 
 # env file
 .env
+configs/config.yaml
+configs/config.*.yaml
 
 # Editor/IDE
 .idea/
