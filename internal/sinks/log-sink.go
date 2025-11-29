@@ -9,8 +9,8 @@ import (
 
 type LogSink struct{}
 
-func newLogSink() *LogSink {
-	return &LogSink{}
+func newLogSink() (*LogSink, error) {
+	return &LogSink{}, nil
 }
 
 func (s *LogSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {

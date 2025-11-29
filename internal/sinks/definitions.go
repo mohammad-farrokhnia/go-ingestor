@@ -5,6 +5,7 @@ import (
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/segmentio/kafka-go"
 )
 
 type Sink interface {
@@ -20,3 +21,8 @@ const (
 	sinkKafka = config.SinkKafka
 	sinkHTTP  = config.SinkHTTP
 )
+
+type KafkaSink struct {
+	writer *kafka.Writer
+	topic  string
+}

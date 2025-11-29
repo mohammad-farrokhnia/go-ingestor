@@ -27,10 +27,9 @@ func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig) ([]S
 func BuildSink(name config.SinkType, cfg config.SinksConfig) (Sink, error) {
 	switch name {
 	case sinkLog:
-		return newLogSink(), nil
+		return newLogSink()
 	case sinkKafka:
-		// TODO: Task 2 - return NewKafkaSink(cfg.Kafka)
-		return nil, fmt.Errorf("kafka sink not implemented yet")
+		return newKafkaSink(cfg.Kafka)
 	case sinkHTTP:
 		// TODO: Task 3 - return NewHTTPSink(cfg.HTTP)
 		return nil, fmt.Errorf("http sink not implemented yet")
