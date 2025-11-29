@@ -2,6 +2,8 @@ package sinks
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
@@ -9,7 +11,7 @@ import (
 )
 
 type Sink interface {
-	Write(ctx context.Context, bathc []*pb.IngestRequest) error
+	Write(ctx context.Context, batch []*pb.IngestRequest) error
 	Name() string
 	Close() error
 }
@@ -25,4 +27,9 @@ const (
 type KafkaSink struct {
 	writer *kafka.Writer
 	topic  string
+}
+type HTTPSink struct {
+	client  *http.Client
+	url     string
+	timeout time.Duration
 }

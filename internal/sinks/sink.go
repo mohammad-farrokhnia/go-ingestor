@@ -31,8 +31,7 @@ func BuildSink(name config.SinkType, cfg config.SinksConfig) (Sink, error) {
 	case sinkKafka:
 		return newKafkaSink(cfg.Kafka)
 	case sinkHTTP:
-		// TODO: Task 3 - return NewHTTPSink(cfg.HTTP)
-		return nil, fmt.Errorf("http sink not implemented yet")
+		return newHTTPSink(cfg.HTTP)
 	default:
 		return nil, fmt.Errorf("unknown sink type: %s", name)
 	}

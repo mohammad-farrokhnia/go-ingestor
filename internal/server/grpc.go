@@ -27,6 +27,7 @@ func (s *GrpcServer) Register(grpcServer *grpc.Server) {
 	pb.RegisterIngestorServiceServer(grpcServer, s)
 }
 
+// Ingest TODO: handle context
 func (s *GrpcServer) Ingest(ctx context.Context, req *pb.IngestRequest) (*pb.IngestResponse, error) {
 	if req.EventId == "" {
 		return &pb.IngestResponse{Status: "ERROR", Error: "missing event_id"}, nil
