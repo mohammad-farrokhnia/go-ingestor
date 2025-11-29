@@ -15,12 +15,13 @@ import (
 )
 
 func main() {
+	log.Println("Starting ingestor -> loading configs...")
 	cfg, err := config.Load("configs")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	log.Printf("Starting go-ingestor on port %d with buffer size %d...",
+	log.Printf("Starting ingestor  on port %d with buffer size %d...",
 		cfg.Server.GrpcPort, cfg.Ingestor.BufferSize)
 	recorder := metrics.New()
 	httpServer, err := server.NewHttpServer(cfg.Server.HttpPort)
