@@ -12,4 +12,10 @@ worker:
   batch_timeout: "5s"
 
 sinks:
-  active: ["log"]
+  active: ["log", "kafka"]
+  kafka:
+    brokers: ["localhost:9092"]
+    topic: "events"
+  http:
+    url: "https://webhook.example.com/events"
+    timeout: "5s"
