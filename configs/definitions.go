@@ -5,6 +5,7 @@ type Config struct {
 	Ingestor IngestorConfig `mapstructure:"ingestor"`
 	Worker   WorkerConfig   `mapstructure:"worker"`
 	Sinks    SinksConfig    `mapstructure:"sinks"`
+	DLQ      DLQConfig      `mapstructure:"dlq"`
 }
 
 type ServerConfig struct {
@@ -23,6 +24,12 @@ type WorkerConfig struct {
 	BatchTimeout string `mapstructure:"batch_timeout"`
 }
 
+type SinksConfig struct {
+	Active []SinkType  `mapstructure:"active" json:"active,omitempty"`
+	Kafka  KafkaConfig `mapstructure:"kafka" json:"kafka"`
+	HTTP   HTTPConfig  `mapstructure:"http" json:"http"`
+}
+
 type KafkaConfig struct {
 	Brokers []string `mapstructure:"brokers"`
 	Topic   string   `mapstructure:"topic"`
@@ -33,16 +40,33 @@ type HTTPConfig struct {
 	Timeout string `mapstructure:"timeout"`
 }
 
-type SinksConfig struct {
-	Active []SinkType  `mapstructure:"active" json:"active,omitempty"`
-	Kafka  KafkaConfig `mapstructure:"kafka" json:"kafka"`
-	HTTP   HTTPConfig  `mapstructure:"http" json:"http"`
-}
-
 type SinkType string
 
 const (
 	SinkLog   SinkType = "log"
 	SinkKafka SinkType = "kafka"
 	SinkHTTP  SinkType = "http"
+)
+
+type DLQConfig struct {
+	Enabled bool           `mapstructure:"enabled"`
+	Type    string         `mapstructure:"type"`
+	File    FileDLQConfig  `mapstructure:"file"`
+	Kafka   KafkaDLQConfig `mapstructure:"kafka"`
+}
+
+type FileDLQConfig struct {
+	Dir string `mapstructure:"dir"`
+}
+
+type KafkaDLQConfig struct {
+	Brokers []string `mapstructure:"brokers"`
+	Topic   string   `mapstructure:"topic"`
+}
+
+type DLQType string
+
+const (
+	DLQTypeFile  DLQType = "file"
+	DLQTypeKafka DLQType = "kafka"
 )

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/configs"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
@@ -21,10 +22,9 @@ func main() {
 	recorder := metrics.New()
 	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
 
-	mySinks, err := sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
-	if err != nil {
-		log.Fatalf("Failed to build sinks: %v", err)
-	}
+	mySinks := initSinks(cfg)
+
+	dlqInstance := initDLQ(cfg)
 
 	log.Println("Starting ingestor service...")
 
@@ -34,7 +34,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder)
+	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
 
 	httpServer.SetReady(true)
 	log.Println("Ingestor service ready")
@@ -59,6 +59,22 @@ func main() {
 	}
 
 	log.Println("Shutdown complete")
+}
+
+func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
+	dlqInstance, err := dlq.NewDLQ(cfg.DLQ)
+	if err != nil {
+		log.Fatalf("Failed to create DLQ: %v", err)
+	}
+	return dlqInstance
+}
+
+func initSinks(cfg *config.Config) []sinks.Sink {
+	mySinks, err := sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
+	if err != nil {
+		log.Fatalf("Failed to build sinks: %v", err)
+	}
+	return mySinks
 }
 
 func loadConfig() *config.Config {

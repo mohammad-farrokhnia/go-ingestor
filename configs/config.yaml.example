@@ -19,3 +19,11 @@ sinks:
   http:
     url: "https://webhook.example.com/events"
     timeout: "5s"
+dlq:
+  enabled: true
+  type: "file"  # file, kafka
+  file:
+    dir: "data/dlq"
+  kafka:
+    brokers: ["localhost:9092"]
+    topic: "events-dlq"

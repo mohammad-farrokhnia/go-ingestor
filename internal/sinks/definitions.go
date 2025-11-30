@@ -8,6 +8,7 @@ import (
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 	"github.com/segmentio/kafka-go"
+	"github.com/sony/gobreaker/v2"
 )
 
 type Sink interface {
@@ -32,4 +33,9 @@ type HTTPSink struct {
 	client  *http.Client
 	url     string
 	timeout time.Duration
+}
+
+type CircuitBreakerSink struct {
+	sink Sink
+	cb   *gobreaker.CircuitBreaker[any]
 }
