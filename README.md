@@ -32,3 +32,9 @@ The ingestor exposes metrics at `http://localhost:8080/metrics` (configurable vi
 **Architecture:** Built with interface-based design (`metrics.Recorder`) allowing easy swapping of metrics backends (Prometheus, OpenTelemetry, etc.).
 
 Built with [Prometheus Go client](https://github.com/prometheus/client_golang).
+
+## Local Kafka Development
+
+### Start Kafka
+```bash
+make kafka-up
