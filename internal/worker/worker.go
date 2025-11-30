@@ -10,7 +10,7 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-func Start(numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder) {
+func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder) {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {
 		log.Fatalf("Invalid batch_timeout: %v", err)
@@ -19,11 +19,11 @@ func Start(numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batch
 	log.Printf("Starting %d workers (BatchSize: %d, Timeout: %s)...", numWorkers, batchSize, timeout)
 
 	for i := 0; i < numWorkers; i++ {
-		go runWorker(i, buffer, batchSize, timeout, sinkList, recorder)
+		go runWorker(ctx, i, buffer, batchSize, timeout, sinkList, recorder)
 	}
 }
 
-func runWorker(id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder) {
+func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder) {
 
 	batch := make([]*pb.IngestRequest, 0, batchSize)
 
@@ -32,7 +32,21 @@ func runWorker(id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout t
 
 	for {
 		select {
-		case event := <-buffer:
+		case <-ctx.Done():
+			if len(batch) > 0 {
+				log.Printf("[WORKER %d] Shutdown: flushing final batch of %d events", id, len(batch))
+				flush(id, batch, sinkList, recorder)
+			}
+			log.Printf("[WORKER %d] Stopped", id)
+			return
+
+		case event, ok := <-buffer:
+			if !ok {
+				if len(batch) > 0 {
+					flush(id, batch, sinkList, recorder)
+				}
+				return
+			}
 			batch = append(batch, event)
 
 			if len(batch) >= batchSize {
