@@ -14,7 +14,7 @@ func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig) ([]S
 		if err != nil {
 			return nil, fmt.Errorf("failed to build sink %q: %w", name, err)
 		}
-		result = append(result, sink)
+		result = append(result, newCircuitBreakerSink(sink))
 	}
 
 	if len(result) == 0 {
