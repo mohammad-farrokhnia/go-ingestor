@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "go.uber.org/automaxprocs"
+
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
