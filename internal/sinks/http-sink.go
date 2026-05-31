@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -60,8 +61,14 @@ func (hs *HTTPSink) Write(ctx context.Context, batch []*pb.IngestRequest) error 
 	if err != nil {
 		return fmt.Errorf("http request failed: %w", err)
 	}
-	// Ingest TODO: handle the error
-	defer resp.Body.Close()
+	defer func() {
+		if _, drainErr := io.Copy(io.Discard, resp.Body); drainErr != nil {
+			slog.Warn("Failed to drain response body", "err", drainErr)
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.Warn("Failed to close response body", "err", closeErr)
+		}
+	}()
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("http sink returned status %d", resp.StatusCode)

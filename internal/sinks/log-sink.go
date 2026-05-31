@@ -13,8 +13,10 @@ func newLogSink() (*LogSink, error) {
 	return &LogSink{}, nil
 }
 
-// Ingest TODO: handle context
 func (s *LogSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if len(batch) == 0 {
 		return nil
 	}

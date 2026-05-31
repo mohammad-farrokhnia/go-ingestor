@@ -31,8 +31,10 @@ func newFileDLQ(dir string) (*FileDLQ, error) {
 	}, nil
 }
 
-// Push TODO: handle context
 func (d *FileDLQ) Push(ctx context.Context, event *pb.IngestRequest, sinkName string, err error) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	entry := DLQEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		SinkName:  sinkName,
