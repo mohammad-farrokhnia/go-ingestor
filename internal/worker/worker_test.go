@@ -1,9 +1,11 @@
 package worker
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
@@ -14,7 +16,7 @@ func TestFlush_EmptyBatch(t *testing.T) {
 	recorder := metrics.NewMock()
 	sinkList := []sinks.Sink{mockSink}
 
-	flush(0, []*pb.IngestRequest{}, sinkList, recorder)
+	flush(0, []*pb.IngestRequest{}, sinkList, recorder, dlq.NewNoOpDLQ())
 
 	if mockSink.BatchCount() != 1 {
 		t.Errorf("expected 1 batch (even if empty), got %d", mockSink.BatchCount())
@@ -33,7 +35,7 @@ func TestFlush_SingleEvent(t *testing.T) {
 		{EventId: "event-1", Source: "test"},
 	}
 
-	flush(0, batch, sinkList, recorder)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ())
 
 	if mockSink.TotalEvents() != 1 {
 		t.Errorf("expected 1 event, got %d", mockSink.TotalEvents())
@@ -54,7 +56,7 @@ func TestFlush_MultipleSinks(t *testing.T) {
 		{EventId: "event-2"},
 	}
 
-	flush(0, batch, sinkList, recorder)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ())
 
 	if mockSink1.TotalEvents() != 2 {
 		t.Errorf("sink1: expected 2 events, got %d", mockSink1.TotalEvents())
@@ -62,7 +64,6 @@ func TestFlush_MultipleSinks(t *testing.T) {
 	if mockSink2.TotalEvents() != 2 {
 		t.Errorf("sink2: expected 2 events, got %d", mockSink2.TotalEvents())
 	}
-	// Only one flush operation (even with multiple sinks)
 	if recorder.GetBatchFlushCount() != 1 {
 		t.Errorf("expected 1 flush recorded, got %d", recorder.GetBatchFlushCount())
 	}
@@ -76,8 +77,7 @@ func TestFlush_NilRecorder(t *testing.T) {
 		{EventId: "event-1"},
 	}
 
-	// Should not panic with nil recorder
-	flush(0, batch, sinkList, nil)
+	flush(0, batch, sinkList, nil, dlq.NewNoOpDLQ())
 
 	if mockSink.TotalEvents() != 1 {
 		t.Errorf("expected 1 event, got %d", mockSink.TotalEvents())
@@ -94,10 +94,8 @@ func TestFlush_SinkError(t *testing.T) {
 		{EventId: "event-1"},
 	}
 
-	// Should not panic, just log error
-	flush(0, batch, sinkList, recorder)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ())
 
-	// Flush duration should still be recorded
 	if recorder.GetBatchFlushCount() != 1 {
 		t.Errorf("expected 1 flush recorded, got %d", recorder.GetBatchFlushCount())
 	}
@@ -119,15 +117,13 @@ func TestWorker_BatchSizeFlush(t *testing.T) {
 	buffer := make(chan *pb.IngestRequest, 100)
 	sinkList := []sinks.Sink{mockSink}
 
-	// Start worker with batch size 3
-	go runWorker(0, buffer, 3, 10*time.Second, sinkList, recorder)
+	ctx := context.Background()
+	go runWorker(ctx, 0, buffer, 3, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ())
 
-	// Send exactly batch size events
 	buffer <- &pb.IngestRequest{EventId: "1"}
 	buffer <- &pb.IngestRequest{EventId: "2"}
 	buffer <- &pb.IngestRequest{EventId: "3"}
 
-	// Wait for flush
 	time.Sleep(100 * time.Millisecond)
 
 	if mockSink.BatchCount() != 1 {
@@ -144,14 +140,12 @@ func TestWorker_TimeoutFlush(t *testing.T) {
 	buffer := make(chan *pb.IngestRequest, 100)
 	sinkList := []sinks.Sink{mockSink}
 
-	// Start worker with short timeout
-	go runWorker(0, buffer, 100, 50*time.Millisecond, sinkList, recorder)
+	ctx := context.Background()
+	go runWorker(ctx, 0, buffer, 100, 50*time.Millisecond, sinkList, recorder, dlq.NewNoOpDLQ())
 
-	// Send fewer events than batch size
 	buffer <- &pb.IngestRequest{EventId: "1"}
 	buffer <- &pb.IngestRequest{EventId: "2"}
 
-	// Wait for timeout flush
 	time.Sleep(150 * time.Millisecond)
 
 	if mockSink.BatchCount() < 1 {
@@ -168,22 +162,18 @@ func TestWorker_MultipleBatches(t *testing.T) {
 	buffer := make(chan *pb.IngestRequest, 100)
 	sinkList := []sinks.Sink{mockSink}
 
-	// Start worker with batch size 2
-	go runWorker(0, buffer, 2, 10*time.Second, sinkList, recorder)
+	ctx := context.Background()
+	go runWorker(ctx, 0, buffer, 2, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ())
 
-	// Send 5 events (should create 2 full batches + 1 partial)
 	for i := 0; i < 5; i++ {
 		buffer <- &pb.IngestRequest{EventId: "event"}
 	}
 
-	// Wait for batch flushes
 	time.Sleep(100 * time.Millisecond)
 
-	// Should have 2 batches (2 events each)
 	if mockSink.BatchCount() < 2 {
 		t.Errorf("expected at least 2 batches, got %d", mockSink.BatchCount())
 	}
-	// 4 events flushed (2 batches of 2), 1 still waiting
 	if mockSink.TotalEvents() < 4 {
 		t.Errorf("expected at least 4 events flushed, got %d", mockSink.TotalEvents())
 	}

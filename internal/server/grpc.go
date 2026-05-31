@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync/atomic"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
@@ -14,14 +15,15 @@ import (
 
 type GrpcServer struct {
 	pb.UnimplementedIngestorServiceServer
-	server   *grpc.Server
-	ingestor *ingestor.Service
-	recorder metrics.Recorder
-	listener net.Listener
-	addr     string
+	server        *grpc.Server
+	ingestor      *ingestor.Service
+	recorder      metrics.Recorder
+	listener      net.Listener
+	addr          string
+	ingestEnabled atomic.Bool
 }
 
-func NewGrpcServer(port int, svc *ingestor.Service, rec metrics.Recorder) (*GrpcServer, error) {
+func NewGrpcServer(port int, svc *ingestor.Service, rec metrics.Recorder, ingestEnabled bool) (*GrpcServer, error) {
 	addr := fmt.Sprintf(":%d", port)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -35,8 +37,13 @@ func NewGrpcServer(port int, svc *ingestor.Service, rec metrics.Recorder) (*Grpc
 		recorder: rec,
 		addr:     addr,
 	}
+	s.ingestEnabled.Store(ingestEnabled)
 	pb.RegisterIngestorServiceServer(s.server, s)
 	return s, nil
+}
+
+func (s *GrpcServer) SetIngestEnabled(enabled bool) {
+	s.ingestEnabled.Store(enabled)
 }
 
 func (s *GrpcServer) Start() error {
@@ -59,6 +66,9 @@ func (s *GrpcServer) Addr() string {
 }
 
 func (s *GrpcServer) Ingest(ctx context.Context, req *pb.IngestRequest) (*pb.IngestResponse, error) {
+	if !s.ingestEnabled.Load() {
+		return &pb.IngestResponse{Status: "DISABLED", Error: "ingest disabled"}, nil
+	}
 	if req.EventId == "" {
 		return &pb.IngestResponse{Status: "ERROR", Error: "missing event_id"}, nil
 	}

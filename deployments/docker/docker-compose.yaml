@@ -36,3 +36,23 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  ingestor:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    image: go-ingestor:latest
+    container_name: go-ingestor
+    depends_on:
+      - kafka
+    environment:
+      CONFIGS_SINKS_KAFKA_BROKERS: "kafka:9092"
+      CONFIGS_SINKS_KAFKA_TOPIC: "events"
+      CONFIGS_DLQ_ENABLED: "true"
+      CONFIGS_DLQ_TYPE: "file"
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    volumes:
+      - ../../configs:/app/configs:ro
+      - ../../data/dlq:/app/data/dlq

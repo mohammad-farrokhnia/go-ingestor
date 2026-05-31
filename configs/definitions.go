@@ -6,6 +6,12 @@ type Config struct {
 	Worker   WorkerConfig   `mapstructure:"worker"`
 	Sinks    SinksConfig    `mapstructure:"sinks"`
 	DLQ      DLQConfig      `mapstructure:"dlq"`
+	Logging  LoggingConfig  `mapstructure:"logging"`
+}
+
+type LoggingConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
 }
 
 type ServerConfig struct {

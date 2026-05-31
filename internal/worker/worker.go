@@ -71,7 +71,7 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 	ctx := context.Background()
 	start := time.Now()
 	for _, sink := range sinkList {
-		if err := writeWithRetry(ctx, sink, batch, workerID); err != nil {
+		if err := writeWithRetry(ctx, sink, batch); err != nil {
 			log.Printf("[WORKER %d] FAILED writing to %s after %d retries: %v", workerID, sink.Name(), maxRetries, err)
 
 			for _, event := range batch {
@@ -89,7 +89,7 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 	log.Printf("[WORKER %d] Flushed batch of %d events", workerID, len(batch))
 }
 
-func writeWithRetry(ctx context.Context, sink sinks.Sink, batch []*pb.IngestRequest, maxRetries int) error {
+func writeWithRetry(ctx context.Context, sink sinks.Sink, batch []*pb.IngestRequest) error {
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		err := sink.Write(ctx, batch)
