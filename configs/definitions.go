@@ -3,6 +3,7 @@ package config
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Ingestor IngestorConfig `mapstructure:"ingestor"`
+	Buffer   BufferConfig   `mapstructure:"buffer"`
 	Worker   WorkerConfig   `mapstructure:"worker"`
 	Sinks    SinksConfig    `mapstructure:"sinks"`
 	DLQ      DLQConfig      `mapstructure:"dlq"`
@@ -22,6 +23,18 @@ type ServerConfig struct {
 
 type IngestorConfig struct {
 	BufferSize int `mapstructure:"buffer_size"`
+}
+
+type BufferConfig struct {
+	Type  string            `mapstructure:"type"`
+	Redis RedisBufferConfig `mapstructure:"redis"`
+}
+
+type RedisBufferConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+	Key      string `mapstructure:"key"`
 }
 
 type WorkerConfig struct {
