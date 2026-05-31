@@ -2,32 +2,40 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"sync/atomic"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
+	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type HttpServer struct {
-	server *http.Server
-	addr   string
-	ready  atomic.Bool
+	server        *http.Server
+	addr          string
+	ready         atomic.Bool
+	ingestEnabled atomic.Bool
+	ingestor      *ingestor.Service
 }
 
-func NewHttpServer(port int) (*HttpServer, error) {
+func NewHttpServer(port int, svc *ingestor.Service, ingestEnabled bool) (*HttpServer, error) {
 	addr := fmt.Sprintf(":%d", port)
 
 	s := &HttpServer{
-		addr: addr,
+		addr:     addr,
+		ingestor: svc,
 	}
+	s.ingestEnabled.Store(ingestEnabled)
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/ready", s.handleReady)
+	mux.HandleFunc("/ingest", s.handleIngest)
 
 	s.server = &http.Server{
 		Addr:    addr,
@@ -35,6 +43,75 @@ func NewHttpServer(port int) (*HttpServer, error) {
 	}
 
 	return s, nil
+}
+
+type httpIngestRequest struct {
+	EventID   string `json:"event_id"`
+	Source    string `json:"source"`
+	Payload   string `json:"payload"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type httpIngestResponse struct {
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeIngestJSON(w, http.StatusMethodNotAllowed, httpIngestResponse{Status: "ERROR", Error: "method not allowed"})
+		return
+	}
+
+	if !s.ingestEnabled.Load() {
+		writeIngestJSON(w, http.StatusServiceUnavailable, httpIngestResponse{Status: "DISABLED", Error: "ingest disabled"})
+		return
+	}
+
+	if s.ingestor == nil {
+		writeIngestJSON(w, http.StatusInternalServerError, httpIngestResponse{Status: "ERROR", Error: "ingestor not configured"})
+		return
+	}
+
+	var body httpIngestRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // 1 MiB cap
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeIngestJSON(w, http.StatusBadRequest, httpIngestResponse{Status: "ERROR", Error: fmt.Sprintf("invalid json: %v", err)})
+		return
+	}
+
+	if body.EventID == "" {
+		writeIngestJSON(w, http.StatusBadRequest, httpIngestResponse{Status: "ERROR", Error: "missing event_id"})
+		return
+	}
+
+	req := &pb.IngestRequest{
+		EventId:   body.EventID,
+		Source:    body.Source,
+		Payload:   body.Payload,
+		Timestamp: body.Timestamp,
+	}
+
+	if err := s.ingestor.Push(req); err != nil {
+		writeIngestJSON(w, http.StatusServiceUnavailable, httpIngestResponse{Status: "DROPPED", Error: "buffer full"})
+		return
+	}
+
+	writeIngestJSON(w, http.StatusAccepted, httpIngestResponse{Status: "OK"})
+}
+
+func writeIngestJSON(w http.ResponseWriter, status int, body httpIngestResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		log.Printf("Failed to encode ingest response: %v", err)
+	}
+}
+
+func (s *HttpServer) SetIngestEnabled(enabled bool) {
+	s.ingestEnabled.Store(enabled)
 }
 
 func (s *HttpServer) Start() error {
@@ -62,24 +139,21 @@ func (s *HttpServer) Addr() string {
 
 func (s *HttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte("ok"))
-	if err != nil {
-		log.Fatalf("Failed to write response for http request(/health): %v", err)
+	if _, err := w.Write([]byte("ok")); err != nil {
+		log.Printf("Failed to write /health response: %v", err)
 	}
 }
 
 func (s *HttpServer) handleReady(w http.ResponseWriter, r *http.Request) {
 	if s.ready.Load() {
 		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte("ready"))
-		if err != nil {
-			log.Fatalf("Failed to write response for http request(/ready): %v", err)
+		if _, err := w.Write([]byte("ready")); err != nil {
+			log.Printf("Failed to write /ready response: %v", err)
 		}
-	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, err := w.Write([]byte("not ready"))
-		if err != nil {
-			log.Fatalf("Failed to write response for http request(/ready): %v", err)
-		}
+		return
+	}
+	w.WriteHeader(http.StatusServiceUnavailable)
+	if _, err := w.Write([]byte("not ready")); err != nil {
+		log.Printf("Failed to write /ready response: %v", err)
 	}
 }
