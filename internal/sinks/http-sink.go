@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -31,7 +31,7 @@ func newHTTPSink(cfg config.HTTPConfig) (*HTTPSink, error) {
 		Timeout: timeout,
 	}
 
-	log.Printf("[HTTPSink] Initialized with url=%s timeout=%s", cfg.URL, timeout)
+	slog.Info("HTTP sink initialized", "url", cfg.URL, "timeout", timeout)
 
 	return &HTTPSink{
 		client:  client,
@@ -67,7 +67,7 @@ func (hs *HTTPSink) Write(ctx context.Context, batch []*pb.IngestRequest) error 
 		return fmt.Errorf("http sink returned status %d", resp.StatusCode)
 	}
 
-	log.Printf("[HTTPSink] Sent %d events to %s (status: %d)", len(batch), hs.url, resp.StatusCode)
+	slog.Debug("Sent events to HTTP sink", "count", len(batch), "url", hs.url, "status", resp.StatusCode)
 	return nil
 }
 

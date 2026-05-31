@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -82,7 +83,8 @@ func main() {
 func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
 	dlqInstance, err := dlq.NewDLQ(cfg.DLQ)
 	if err != nil {
-		log.Fatalf("Failed to create DLQ: %v", err)
+		slog.Error("Failed to create DLQ", "err", err)
+		os.Exit(1)
 	}
 	return dlqInstance
 }
@@ -90,7 +92,8 @@ func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
 func initSinks(cfg *config.Config) []sinks.Sink {
 	mySinks, err := sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
 	if err != nil {
-		log.Fatalf("Failed to build sinks: %v", err)
+		slog.Error("Failed to build sinks", "err", err)
+		os.Exit(1)
 	}
 	return mySinks
 }
@@ -107,7 +110,8 @@ func loadConfig() *config.Config {
 func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.HttpServer {
 	httpServer, err := server.NewHttpServer(cfg.HttpPort, svc, cfg.IngestEnabled)
 	if err != nil {
-		log.Fatalf("Failed to create HTTP server: %v", err)
+		slog.Error("Failed to create HTTP server", "err", err)
+		os.Exit(1)
 	}
 	httpServer.Start()
 	return httpServer
@@ -116,7 +120,8 @@ func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.Http
 func initGrpcServer(cfg config.ServerConfig, coreService *ingestor.Service, recorder metrics.Recorder) *server.GrpcServer {
 	grpcServer, err := server.NewGrpcServer(cfg.GrpcPort, coreService, recorder, cfg.IngestEnabled)
 	if err != nil {
-		log.Fatalf("Failed to create gRPC server: %v", err)
+		slog.Error("Failed to create gRPC server", "err", err)
+		os.Exit(1)
 	}
 	grpcServer.Start()
 	return grpcServer

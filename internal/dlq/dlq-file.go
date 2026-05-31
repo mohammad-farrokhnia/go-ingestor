@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,7 +23,7 @@ func newFileDLQ(dir string) (*FileDLQ, error) {
 		return nil, fmt.Errorf("failed to open DLQ file: %w", err)
 	}
 
-	log.Printf("[DLQ] Writing to %s", filename)
+	slog.Info("DLQ writing to file", "path", filename)
 
 	return &FileDLQ{
 		dir:  dir,

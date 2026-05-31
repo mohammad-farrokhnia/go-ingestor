@@ -2,7 +2,7 @@ package sinks
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
@@ -18,7 +18,7 @@ func (s *LogSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {
 	if len(batch) == 0 {
 		return nil
 	}
-	log.Printf("[LogSink] Writing batch of %d events. First ID: %s", len(batch), batch[0].EventId)
+	slog.Info("Writing batch", "events", len(batch), "first_id", batch[0].EventId)
 	return nil
 }
 

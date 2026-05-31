@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
@@ -28,7 +28,7 @@ func NewKafkaDLQ(cfg config.KafkaDLQConfig) (*KafkaDLQ, error) {
 		Async:        false,
 	}
 
-	log.Printf("[DLQ] Kafka DLQ created brokers=%v topic=%s", cfg.Brokers, cfg.Topic)
+	slog.Info("Kafka DLQ created", "brokers", cfg.Brokers, "topic", cfg.Topic)
 
 	return &KafkaDLQ{writer: writer, topic: cfg.Topic}, nil
 }

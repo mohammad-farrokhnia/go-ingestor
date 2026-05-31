@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
@@ -21,7 +21,7 @@ func newCircuitBreakerSink(sink Sink) *CircuitBreakerSink {
 			return counts.ConsecutiveFailures >= 5
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
-			log.Printf("[CIRCUIT BREAKER] %s: %s -> %s", name, from, to)
+			slog.Warn("Circuit breaker state change", "name", name, "from", from.String(), "to", to.String())
 		},
 	}
 

@@ -31,3 +31,6 @@ dlq:
 logging:
   level: "info"   # debug, info, warn, error
   format: "json"   # json or text
+
+shutdown:
+  timeout: "30s"   # max time to drain buffer before forcing exit
