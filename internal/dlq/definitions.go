@@ -7,6 +7,7 @@ import (
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/segmentio/kafka-go"
 )
 
 type DLQType = config.DLQType
@@ -35,4 +36,7 @@ type DLQEntry struct {
 	Event     *pb.IngestRequest `json:"event"`
 }
 
-type KafkaDLQ struct{}
+type KafkaDLQ struct {
+	writer *kafka.Writer
+	topic  string
+}
