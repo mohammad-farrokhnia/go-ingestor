@@ -10,6 +10,7 @@ import (
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/logging"
@@ -25,13 +26,21 @@ func main() {
 	logger := logging.L()
 
 	recorder := metrics.New()
-	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
+
+	buf, err := buffer.New(cfg.Buffer, cfg.Ingestor.BufferSize)
+	if err != nil {
+		slog.Error("Failed to create buffer", "err", err)
+		os.Exit(1)
+	}
+
+	coreService := ingestor.NewService(buf, recorder)
 
 	mySinks := initSinks(cfg)
 
 	dlqInstance := initDLQ(cfg)
 
 	logger.Info("Starting ingestor service",
+		"buffer_type", cfg.Buffer.Type,
 		"buffer_size", cfg.Ingestor.BufferSize,
 		"workers", cfg.Worker.NumWorkers,
 		"batch_size", cfg.Worker.BatchSize,
@@ -43,7 +52,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
+	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buf().Chan(), cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
 
 	httpServer.SetReady(true)
 	logger.Info("Ingestor service ready")

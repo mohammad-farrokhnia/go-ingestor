@@ -87,6 +87,14 @@ server:
 ingestor:
   buffer_size: 1000
 
+buffer:
+  type: "channel"
+  redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 0
+    key: "ingestor:buffer"
+
 worker:
   num_workers: 5
   batch_size: 100
@@ -151,6 +159,19 @@ GOMAXPROCS is auto-tuned to container CPU limits via `go.uber.org/automaxprocs`.
 ```bash
 kubectl apply -f deployments/k8s/
 ```
+
+## Scaling
+
+The ingestor is designed to scale horizontally as stateless replicas behind a load balancer.
+
+| Buffer Type | Use Case | Trade-off |
+|-------------|----------|----------|
+| `channel` (default) | Single instance or independent replicas | Fastest, no external dependency, events lost if pod dies |
+| `redis` | Shared buffer across replicas | Survives pod restarts, slight latency from network round-trip |
+
+Set `buffer.type: redis` and configure `buffer.redis.*` to enable shared buffering.
+
+When using **Kafka as a sink**, each replica writes independently. Kafka handles deduplication via `event_id` keys and partitioning.
 
 ## Local Kafka Development
 

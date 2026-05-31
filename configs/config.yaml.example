@@ -6,6 +6,14 @@ server:
 ingestor:
   buffer_size: 1000
 
+buffer:
+  type: "channel"      # channel (in-process) or redis (shared across replicas)
+  redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 0
+    key: "ingestor:buffer"
+
 worker:
   num_workers: 5
   batch_size: 100
