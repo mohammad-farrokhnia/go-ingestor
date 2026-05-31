@@ -34,3 +34,6 @@ configs/config.*.yaml
 # Editor/IDE
 .idea/
 .vscode/
+
+# Local notes
+info/

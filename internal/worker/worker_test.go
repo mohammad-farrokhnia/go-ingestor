@@ -156,6 +156,43 @@ func TestWorker_TimeoutFlush(t *testing.T) {
 	}
 }
 
+func TestStart_DrainsBufferOnClose(t *testing.T) {
+	mockSink := sinks.NewMockSink()
+	recorder := metrics.NewMock()
+	buffer := make(chan *pb.IngestRequest, 100)
+	sinkList := []sinks.Sink{mockSink}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Large batch size + long timeout so events stay buffered until drain.
+	wg := Start(ctx, 3, buffer, 1000, "10s", sinkList, recorder, dlq.NewNoOpDLQ())
+
+	const total = 50
+	for i := 0; i < total; i++ {
+		buffer <- &pb.IngestRequest{EventId: "event"}
+	}
+
+	// Closing the buffer must trigger workers to drain remaining events and exit.
+	close(buffer)
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("workers did not drain and exit after buffer close")
+	}
+
+	if mockSink.TotalEvents() != total {
+		t.Errorf("expected all %d events drained, got %d", total, mockSink.TotalEvents())
+	}
+}
+
 func TestWorker_MultipleBatches(t *testing.T) {
 	mockSink := sinks.NewMockSink()
 	recorder := metrics.NewMock()

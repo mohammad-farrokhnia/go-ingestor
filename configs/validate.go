@@ -82,10 +82,35 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.Shutdown.Timeout != "" {
+		if d, err := time.ParseDuration(c.Shutdown.Timeout); err != nil {
+			errs = appendErr(errs, "shutdown.timeout", fmt.Sprintf("invalid duration: %v", err))
+		} else if d <= 0 {
+			errs = appendErr(errs, "shutdown.timeout", "must be > 0")
+		}
+	}
+
 	if len(errs) == 0 {
 		return nil
 	}
 	return errors.New("config validation failed:\n  - " + joinErrs(errs))
+}
+
+// DefaultShutdownTimeout is used when shutdown.timeout is not configured.
+const DefaultShutdownTimeout = 30 * time.Second
+
+// ShutdownTimeout returns the configured graceful shutdown timeout, falling back
+// to DefaultShutdownTimeout when unset. The value is assumed valid (checked by
+// Validate at load time).
+func (c *Config) ShutdownTimeout() time.Duration {
+	if c.Shutdown.Timeout == "" {
+		return DefaultShutdownTimeout
+	}
+	d, err := time.ParseDuration(c.Shutdown.Timeout)
+	if err != nil || d <= 0 {
+		return DefaultShutdownTimeout
+	}
+	return d
 }
 
 func validPort(p int) bool { return p > 0 && p <= 65535 }

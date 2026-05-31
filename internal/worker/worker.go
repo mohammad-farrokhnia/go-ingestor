@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
@@ -13,7 +14,10 @@ import (
 
 const maxRetries = 3
 
-func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) {
+// Start launches numWorkers goroutines draining the buffer and returns a
+// WaitGroup that completes once all workers have exited. Workers exit when the
+// buffer channel is closed (graceful drain) or ctx is cancelled (forced stop).
+func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) *sync.WaitGroup {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {
 		log.Fatalf("Invalid batch_timeout: %v", err)
@@ -21,9 +25,15 @@ func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest,
 
 	log.Printf("Starting %d workers (BatchSize: %d, Timeout: %s)...", numWorkers, batchSize, timeout)
 
+	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
-		go runWorker(ctx, i, buffer, batchSize, timeout, sinkList, recorder, dlq)
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			runWorker(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq)
+		}(i)
 	}
+	return &wg
 }
 
 func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) {
