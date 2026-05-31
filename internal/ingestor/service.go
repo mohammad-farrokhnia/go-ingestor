@@ -22,6 +22,10 @@ func (s *Service) Buf() buffer.Buffer {
 	return s.buf
 }
 
+func (s *Service) Close() error {
+	return s.buf.Close()
+}
+
 func (s *Service) Push(req *pb.IngestRequest) error {
 	if s.recorder != nil {
 		s.recorder.IncEventsReceived()

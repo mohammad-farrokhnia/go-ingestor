@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
