@@ -7,6 +7,11 @@ type Config struct {
 	Sinks    SinksConfig    `mapstructure:"sinks"`
 	DLQ      DLQConfig      `mapstructure:"dlq"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
+	Shutdown ShutdownConfig `mapstructure:"shutdown"`
+}
+
+type ShutdownConfig struct {
+	Timeout string `mapstructure:"timeout"`
 }
 
 type LoggingConfig struct {

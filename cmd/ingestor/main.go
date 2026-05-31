@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
@@ -41,8 +40,9 @@ func main() {
 	grpcServer := initGrpcServer(cfg.Server, coreService, recorder)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
+	workerWg := worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
 
 	httpServer.SetReady(true)
 	logger.Info("Ingestor service ready")
@@ -57,13 +57,31 @@ func main() {
 	httpServer.SetIngestEnabled(false)
 	grpcServer.SetIngestEnabled(false)
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownTimeout := cfg.ShutdownTimeout()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
-	cancel()
 	grpcServer.Stop()
 	if err := httpServer.Stop(shutdownCtx); err != nil {
 		logger.Error("HTTP shutdown error", "err", err)
+	}
+
+	coreService.Close()
+
+	logger.Info("Draining buffer", "timeout", shutdownTimeout.String())
+	drained := make(chan struct{})
+	go func() {
+		workerWg.Wait()
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+		logger.Info("All workers drained successfully")
+	case <-shutdownCtx.Done():
+		logger.Warn("Shutdown timeout exceeded; forcing worker stop", "timeout", shutdownTimeout.String())
+		cancel()
+		<-drained
 	}
 
 	for _, sink := range mySinks {

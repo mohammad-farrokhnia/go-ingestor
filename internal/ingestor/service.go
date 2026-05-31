@@ -19,6 +19,10 @@ func NewService(bufferSize int, recorder metrics.Recorder) *Service {
 	}
 }
 
+func (s *Service) Close() {
+	close(s.Buffer)
+}
+
 func (s *Service) Push(req *pb.IngestRequest) error {
 	if s.recorder != nil {
 		s.recorder.IncEventsReceived()
