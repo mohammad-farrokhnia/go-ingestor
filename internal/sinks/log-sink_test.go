@@ -90,6 +90,5 @@ func TestLogSink_Close(t *testing.T) {
 func TestLogSink_ImplementsSinkInterface(t *testing.T) {
 	sink, _ := newLogSink()
 
-	// Compile-time check that LogSink implements Sink
 	var _ Sink = sink
 }

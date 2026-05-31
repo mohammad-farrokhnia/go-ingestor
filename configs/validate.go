@@ -23,6 +23,16 @@ func (c *Config) Validate() error {
 		errs = appendErr(errs, "ingestor.buffer_size", "must be > 0")
 	}
 
+	switch c.Buffer.Type {
+	case "", "channel":
+	case "redis":
+		if c.Buffer.Redis.Addr == "" {
+			errs = appendErr(errs, "buffer.redis.addr", "must be set when buffer type is redis")
+		}
+	default:
+		errs = appendErr(errs, "buffer.type", fmt.Sprintf("unknown buffer type %q (must be channel or redis)", c.Buffer.Type))
+	}
+
 	if c.Worker.NumWorkers <= 0 {
 		errs = appendErr(errs, "worker.num_workers", "must be > 0")
 	}

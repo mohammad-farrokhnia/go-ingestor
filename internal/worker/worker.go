@@ -2,8 +2,8 @@ package worker
 
 import (
 	"context"
-	"log"
-	"sync"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
@@ -17,10 +17,11 @@ const maxRetries = 3
 func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) *sync.WaitGroup {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {
-		log.Fatalf("Invalid batch_timeout: %v", err)
+		slog.Error("Invalid batch_timeout", "err", err)
+		os.Exit(1)
 	}
 
-	log.Printf("Starting %d workers (BatchSize: %d, Timeout: %s)...", numWorkers, batchSize, timeout)
+	slog.Info("Starting workers", "count", numWorkers, "batch_size", batchSize, "timeout", timeout)
 
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
@@ -44,10 +45,10 @@ func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, bat
 		select {
 		case <-ctx.Done():
 			if len(batch) > 0 {
-				log.Printf("[WORKER %d] Shutdown: flushing final batch of %d events", id, len(batch))
+				slog.Info("Shutdown: flushing final batch", "worker", id, "events", len(batch))
 				flush(id, batch, sinkList, recorder, dlq)
 			}
-			log.Printf("[WORKER %d] Stopped", id)
+			slog.Info("Worker stopped", "worker", id)
 			return
 
 		case event, ok := <-buffer:
@@ -79,11 +80,11 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 	start := time.Now()
 	for _, sink := range sinkList {
 		if err := writeWithRetry(ctx, sink, batch); err != nil {
-			log.Printf("[WORKER %d] FAILED writing to %s after %d retries: %v", workerID, sink.Name(), maxRetries, err)
+			slog.Error("Failed writing to sink after retries", "worker", workerID, "sink", sink.Name(), "retries", maxRetries, "err", err)
 
 			for _, event := range batch {
 				if dlqErr := dlq.Push(ctx, event, sink.Name(), err); dlqErr != nil {
-					log.Printf("[WORKER %d] Failed to write to DLQ: %v", workerID, dlqErr)
+					slog.Error("Failed to write to DLQ", "worker", workerID, "err", dlqErr)
 				}
 			}
 		}
@@ -93,7 +94,7 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 		recorder.ObserveBatchFlush(time.Since(start).Seconds())
 	}
 
-	log.Printf("[WORKER %d] Flushed batch of %d events", workerID, len(batch))
+	slog.Debug("Flushed batch", "worker", workerID, "events", len(batch))
 }
 
 func writeWithRetry(ctx context.Context, sink sinks.Sink, batch []*pb.IngestRequest) error {
@@ -107,8 +108,7 @@ func writeWithRetry(ctx context.Context, sink sinks.Sink, batch []*pb.IngestRequ
 
 		if attempt < maxRetries {
 			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
-			log.Printf("[RETRY] %s failed (attempt %d/%d), retrying in %v: %v",
-				sink.Name(), attempt, maxRetries, backoff, err)
+			slog.Warn("Sink write failed, retrying", "sink", sink.Name(), "attempt", attempt, "max_retries", maxRetries, "backoff", backoff, "err", err)
 
 			select {
 			case <-ctx.Done():

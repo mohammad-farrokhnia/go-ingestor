@@ -3,7 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"sync/atomic"
 
@@ -47,17 +47,17 @@ func (s *GrpcServer) SetIngestEnabled(enabled bool) {
 }
 
 func (s *GrpcServer) Start() error {
-	log.Printf("gRPC server listening on %s", s.addr)
+	slog.Info("gRPC server listening", "addr", s.addr)
 	go func() {
 		if err := s.server.Serve(s.listener); err != nil {
-			log.Printf("gRPC server error: %v", err)
+			slog.Error("gRPC server error", "err", err)
 		}
 	}()
 	return nil
 }
 
 func (s *GrpcServer) Stop() {
-	log.Println("Shutting down gRPC server...")
+	slog.Info("Shutting down gRPC server")
 	s.server.GracefulStop()
 }
 

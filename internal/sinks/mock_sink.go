@@ -7,7 +7,6 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-// MockSink is a test implementation of Sink that captures written batches.
 type MockSink struct {
 	mu       sync.Mutex
 	batches  [][]*pb.IngestRequest
@@ -25,7 +24,6 @@ func (m *MockSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	// Make a copy to avoid mutation issues
 	batchCopy := make([]*pb.IngestRequest, len(batch))
 	copy(batchCopy, batch)
 	m.batches = append(m.batches, batchCopy)
@@ -43,28 +41,22 @@ func (m *MockSink) Close() error {
 	return nil
 }
 
-// Test helpers
-
-// SetError configures the mock to return an error on Write.
 func (m *MockSink) SetError(err error) {
 	m.writeErr = err
 }
 
-// GetBatches returns all batches written to the sink.
 func (m *MockSink) GetBatches() [][]*pb.IngestRequest {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.batches
 }
 
-// BatchCount returns the number of batches written.
 func (m *MockSink) BatchCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.batches)
 }
 
-// TotalEvents returns the total number of events across all batches.
 func (m *MockSink) TotalEvents() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -75,14 +67,12 @@ func (m *MockSink) TotalEvents() int {
 	return count
 }
 
-// IsClosed returns whether Close was called.
 func (m *MockSink) IsClosed() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.closed
 }
 
-// Reset clears all recorded batches.
 func (m *MockSink) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

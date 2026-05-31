@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	_ "go.uber.org/automaxprocs"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/logging"
@@ -25,13 +27,21 @@ func main() {
 	logger := logging.L()
 
 	recorder := metrics.New()
-	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
+
+	buf, err := buffer.New(cfg.Buffer, cfg.Ingestor.BufferSize)
+	if err != nil {
+		slog.Error("Failed to create buffer", "err", err)
+		os.Exit(1)
+	}
+
+	coreService := ingestor.NewService(buf, recorder)
 
 	mySinks := initSinks(cfg)
 
 	dlqInstance := initDLQ(cfg)
 
 	logger.Info("Starting ingestor service",
+		"buffer_type", cfg.Buffer.Type,
 		"buffer_size", cfg.Ingestor.BufferSize,
 		"workers", cfg.Worker.NumWorkers,
 		"batch_size", cfg.Worker.BatchSize,
@@ -44,7 +54,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerWg := worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
+	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buf().Chan(), cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
 
 	httpServer.SetReady(true)
 	logger.Info("Ingestor service ready")
@@ -102,7 +112,8 @@ func main() {
 func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
 	dlqInstance, err := dlq.NewDLQ(cfg.DLQ)
 	if err != nil {
-		log.Fatalf("Failed to create DLQ: %v", err)
+		slog.Error("Failed to create DLQ", "err", err)
+		os.Exit(1)
 	}
 	return dlqInstance
 }
@@ -110,7 +121,8 @@ func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
 func initSinks(cfg *config.Config) []sinks.Sink {
 	mySinks, err := sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
 	if err != nil {
-		log.Fatalf("Failed to build sinks: %v", err)
+		slog.Error("Failed to build sinks", "err", err)
+		os.Exit(1)
 	}
 	return mySinks
 }
@@ -127,7 +139,8 @@ func loadConfig() *config.Config {
 func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.HttpServer {
 	httpServer, err := server.NewHttpServer(cfg.HttpPort, svc, cfg.IngestEnabled)
 	if err != nil {
-		log.Fatalf("Failed to create HTTP server: %v", err)
+		slog.Error("Failed to create HTTP server", "err", err)
+		os.Exit(1)
 	}
 	httpServer.Start()
 	return httpServer
@@ -136,7 +149,8 @@ func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.Http
 func initGrpcServer(cfg config.ServerConfig, coreService *ingestor.Service, recorder metrics.Recorder) *server.GrpcServer {
 	grpcServer, err := server.NewGrpcServer(cfg.GrpcPort, coreService, recorder, cfg.IngestEnabled)
 	if err != nil {
-		log.Fatalf("Failed to create gRPC server: %v", err)
+		slog.Error("Failed to create gRPC server", "err", err)
+		os.Exit(1)
 	}
 	grpcServer.Start()
 	return grpcServer

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
@@ -28,7 +28,7 @@ func newKafkaSink(cfg config.KafkaConfig) (*KafkaSink, error) {
 		BatchTimeout: 10 * time.Millisecond,
 		Async:        false,
 	}
-	log.Printf("kafka sink created with borkers=%v topic=%s\n", cfg.Brokers, cfg.Topic)
+	slog.Info("Kafka sink created", "brokers", cfg.Brokers, "topic", cfg.Topic)
 
 	return &KafkaSink{
 		writer: writer,
@@ -44,7 +44,7 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 	for _, event := range batch {
 		payload, err := json.Marshal(event)
 		if err != nil {
-			log.Printf("[KafkaSink] Failed to marshal event %s: %v", event.EventId, err)
+			slog.Error("Failed to marshal event", "event_id", event.EventId, "err", err)
 			continue
 		}
 		messages = append(messages, kafka.Message{
@@ -57,7 +57,7 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 		return fmt.Errorf("kafka write failed: %w", err)
 	}
 
-	log.Printf("[KafkaSink] Wrote %d messages to topic %s", len(messages), ks.topic)
+	slog.Debug("Wrote messages to Kafka", "count", len(messages), "topic", ks.topic)
 	return nil
 }
 

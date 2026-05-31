@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 
@@ -75,7 +75,7 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body httpIngestRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // 1 MiB cap
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
 		writeIngestJSON(w, http.StatusBadRequest, httpIngestResponse{Status: "ERROR", Error: fmt.Sprintf("invalid json: %v", err)})
@@ -106,7 +106,7 @@ func writeIngestJSON(w http.ResponseWriter, status int, body httpIngestResponse)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		log.Printf("Failed to encode ingest response: %v", err)
+		slog.Error("Failed to encode ingest response", "err", err)
 	}
 }
 
@@ -115,17 +115,17 @@ func (s *HttpServer) SetIngestEnabled(enabled bool) {
 }
 
 func (s *HttpServer) Start() error {
-	log.Printf("HTTP server listening on %s", s.addr)
+	slog.Info("HTTP server listening", "addr", s.addr)
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("HTTP server error: %v", err)
+			slog.Error("HTTP server error", "err", err)
 		}
 	}()
 	return nil
 }
 
 func (s *HttpServer) Stop(ctx context.Context) error {
-	log.Println("Shutting down HTTP server...")
+	slog.Info("Shutting down HTTP server")
 	return s.server.Shutdown(ctx)
 }
 
@@ -140,7 +140,7 @@ func (s *HttpServer) Addr() string {
 func (s *HttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write([]byte("ok")); err != nil {
-		log.Printf("Failed to write /health response: %v", err)
+		slog.Error("Failed to write /health response", "err", err)
 	}
 }
 
@@ -148,12 +148,12 @@ func (s *HttpServer) handleReady(w http.ResponseWriter, r *http.Request) {
 	if s.ready.Load() {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("ready")); err != nil {
-			log.Printf("Failed to write /ready response: %v", err)
+			slog.Error("Failed to write /ready response", "err", err)
 		}
 		return
 	}
 	w.WriteHeader(http.StatusServiceUnavailable)
 	if _, err := w.Write([]byte("not ready")); err != nil {
-		log.Printf("Failed to write /ready response: %v", err)
+		slog.Error("Failed to write /ready response", "err", err)
 	}
 }
