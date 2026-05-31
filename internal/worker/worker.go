@@ -14,7 +14,7 @@ import (
 
 const maxRetries = 3
 
-func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) {
+func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) *sync.WaitGroup {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {
 		slog.Error("Invalid batch_timeout", "err", err)
@@ -23,9 +23,15 @@ func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest,
 
 	slog.Info("Starting workers", "count", numWorkers, "batch_size", batchSize, "timeout", timeout)
 
+	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
-		go runWorker(ctx, i, buffer, batchSize, timeout, sinkList, recorder, dlq)
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			runWorker(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq)
+		}(i)
 	}
+	return &wg
 }
 
 func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) {
