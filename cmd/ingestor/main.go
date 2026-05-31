@@ -53,7 +53,6 @@ func main() {
 
 	logger.Info("Shutdown signal received")
 
-	// Stop accepting new traffic.
 	httpServer.SetReady(false)
 	httpServer.SetIngestEnabled(false)
 	grpcServer.SetIngestEnabled(false)
@@ -62,14 +61,11 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
-	// Stop servers first so no producer can push after the buffer is closed.
-	// GracefulStop / Shutdown block until in-flight requests finish.
 	grpcServer.Stop()
 	if err := httpServer.Stop(shutdownCtx); err != nil {
 		logger.Error("HTTP shutdown error", "err", err)
 	}
 
-	// Close the buffer so workers drain remaining events and exit.
 	coreService.Close()
 
 	logger.Info("Draining buffer", "timeout", shutdownTimeout.String())

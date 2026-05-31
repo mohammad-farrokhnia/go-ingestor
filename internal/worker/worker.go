@@ -14,9 +14,6 @@ import (
 
 const maxRetries = 3
 
-// Start launches numWorkers goroutines draining the buffer and returns a
-// WaitGroup that completes once all workers have exited. Workers exit when the
-// buffer channel is closed (graceful drain) or ctx is cancelled (forced stop).
 func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue) *sync.WaitGroup {
 	timeout, err := time.ParseDuration(batchTimeoutStr)
 	if err != nil {

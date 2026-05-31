@@ -96,12 +96,8 @@ func (c *Config) Validate() error {
 	return errors.New("config validation failed:\n  - " + joinErrs(errs))
 }
 
-// DefaultShutdownTimeout is used when shutdown.timeout is not configured.
 const DefaultShutdownTimeout = 30 * time.Second
 
-// ShutdownTimeout returns the configured graceful shutdown timeout, falling back
-// to DefaultShutdownTimeout when unset. The value is assumed valid (checked by
-// Validate at load time).
 func (c *Config) ShutdownTimeout() time.Duration {
 	if c.Shutdown.Timeout == "" {
 		return DefaultShutdownTimeout

@@ -19,10 +19,6 @@ func NewService(bufferSize int, recorder metrics.Recorder) *Service {
 	}
 }
 
-// Close closes the underlying buffer channel. It must only be called after all
-// producers (gRPC/HTTP servers) have stopped, otherwise a send on a closed
-// channel will panic. Closing the buffer signals workers to drain remaining
-// events and exit.
 func (s *Service) Close() {
 	close(s.Buffer)
 }

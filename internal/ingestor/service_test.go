@@ -71,13 +71,11 @@ func TestService_Push_MultipleEvents(t *testing.T) {
 
 func TestService_Push_BufferFull(t *testing.T) {
 	recorder := metrics.NewMock()
-	svc := NewService(2, recorder) // Small buffer
+	svc := NewService(2, recorder)
 
-	// Fill buffer
 	svc.Push(&pb.IngestRequest{EventId: "1"})
 	svc.Push(&pb.IngestRequest{EventId: "2"})
 
-	// This should fail
 	err := svc.Push(&pb.IngestRequest{EventId: "3"})
 
 	if err == nil {
@@ -89,7 +87,6 @@ func TestService_Push_BufferFull(t *testing.T) {
 	if recorder.GetEventsDropped() != 1 {
 		t.Errorf("expected 1 event dropped, got %d", recorder.GetEventsDropped())
 	}
-	// Events received should still be incremented (we received it, then dropped)
 	if recorder.GetEventsReceived() != 3 {
 		t.Errorf("expected 3 events received, got %d", recorder.GetEventsReceived())
 	}

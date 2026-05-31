@@ -165,7 +165,6 @@ func TestStart_DrainsBufferOnClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Large batch size + long timeout so events stay buffered until drain.
 	wg := Start(ctx, 3, buffer, 1000, "10s", sinkList, recorder, dlq.NewNoOpDLQ())
 
 	const total = 50
@@ -173,7 +172,6 @@ func TestStart_DrainsBufferOnClose(t *testing.T) {
 		buffer <- &pb.IngestRequest{EventId: "event"}
 	}
 
-	// Closing the buffer must trigger workers to drain remaining events and exit.
 	close(buffer)
 
 	done := make(chan struct{})
