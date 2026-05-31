@@ -116,7 +116,6 @@ func TestHTTPSink_Write_Success(t *testing.T) {
 		t.Errorf("expected Content-Type 'application/json', got %s", receivedContentType)
 	}
 
-	// Verify payload
 	var received []map[string]interface{}
 	if err := json.Unmarshal(receivedBody, &received); err != nil {
 		t.Fatalf("failed to unmarshal received body: %v", err)
@@ -183,7 +182,6 @@ func TestHTTPSink_Write_ConnectionError(t *testing.T) {
 
 func TestHTTPSink_Write_ContextCanceled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Slow response
 		select {}
 	}))
 	defer server.Close()
@@ -192,7 +190,7 @@ func TestHTTPSink_Write_ContextCanceled(t *testing.T) {
 	sink, _ := newHTTPSink(cfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
+	cancel()
 
 	batch := []*pb.IngestRequest{
 		{EventId: "event-1"},

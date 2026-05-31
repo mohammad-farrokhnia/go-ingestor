@@ -75,7 +75,7 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body httpIngestRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)) // 1 MiB cap
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&body); err != nil {
 		writeIngestJSON(w, http.StatusBadRequest, httpIngestResponse{Status: "ERROR", Error: fmt.Sprintf("invalid json: %v", err)})

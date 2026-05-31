@@ -79,6 +79,5 @@ func TestMockRecorder_Reset(t *testing.T) {
 func TestMockRecorder_ImplementsRecorder(t *testing.T) {
 	m := NewMock()
 
-	// Compile-time check that MockRecorder implements Recorder
 	var _ Recorder = m
 }

@@ -2,7 +2,6 @@ package metrics
 
 import "sync/atomic"
 
-// MockRecorder is a test implementation of Recorder that tracks calls.
 type MockRecorder struct {
 	eventsReceived  atomic.Int64
 	eventsDropped   atomic.Int64
@@ -30,13 +29,11 @@ func (m *MockRecorder) SetBufferSize(size int) {
 	m.bufferSize.Store(int64(size))
 }
 
-// Getters for test assertions
 func (m *MockRecorder) GetEventsReceived() int64  { return m.eventsReceived.Load() }
 func (m *MockRecorder) GetEventsDropped() int64   { return m.eventsDropped.Load() }
 func (m *MockRecorder) GetBatchFlushCount() int64 { return m.batchFlushCount.Load() }
 func (m *MockRecorder) GetBufferSize() int64      { return m.bufferSize.Load() }
 
-// Reset clears all counters (useful between tests)
 func (m *MockRecorder) Reset() {
 	m.eventsReceived.Store(0)
 	m.eventsDropped.Store(0)
