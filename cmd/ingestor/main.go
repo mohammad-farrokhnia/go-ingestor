@@ -8,9 +8,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/configs"
+	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/logging"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
@@ -19,6 +20,9 @@ import (
 
 func main() {
 	cfg := loadConfig()
+	logging.Init(cfg.Logging.Level, cfg.Logging.Format)
+	logger := logging.L()
+
 	recorder := metrics.New()
 	coreService := ingestor.NewService(cfg.Ingestor.BufferSize, recorder)
 
@@ -26,9 +30,13 @@ func main() {
 
 	dlqInstance := initDLQ(cfg)
 
-	log.Println("Starting ingestor service...")
+	logger.Info("Starting ingestor service",
+		"buffer_size", cfg.Ingestor.BufferSize,
+		"workers", cfg.Worker.NumWorkers,
+		"batch_size", cfg.Worker.BatchSize,
+	)
 
-	httpServer := initHttpServer(cfg.Server)
+	httpServer := initHttpServer(cfg.Server, coreService)
 
 	grpcServer := initGrpcServer(cfg.Server, coreService, recorder)
 
@@ -37,28 +45,38 @@ func main() {
 	worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buffer, cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
 
 	httpServer.SetReady(true)
-	log.Println("Ingestor service ready")
+	logger.Info("Ingestor service ready")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutdown signal received...")
+	logger.Info("Shutdown signal received")
 
 	httpServer.SetReady(false)
+	httpServer.SetIngestEnabled(false)
+	grpcServer.SetIngestEnabled(false)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
 	cancel()
 	grpcServer.Stop()
-	httpServer.Stop(shutdownCtx)
-
-	for _, sink := range mySinks {
-		sink.Close()
+	if err := httpServer.Stop(shutdownCtx); err != nil {
+		logger.Error("HTTP shutdown error", "err", err)
 	}
 
-	log.Println("Shutdown complete")
+	for _, sink := range mySinks {
+		if err := sink.Close(); err != nil {
+			logger.Error("Error closing sink", "sink", sink.Name(), "err", err)
+		}
+	}
+
+	if err := dlqInstance.Close(); err != nil {
+		logger.Error("Error closing DLQ", "dlq", dlqInstance.Name(), "err", err)
+	}
+
+	logger.Info("Shutdown complete")
 }
 
 func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
@@ -86,8 +104,8 @@ func loadConfig() *config.Config {
 	return cfg
 }
 
-func initHttpServer(cfg config.ServerConfig) *server.HttpServer {
-	httpServer, err := server.NewHttpServer(cfg.HttpPort)
+func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.HttpServer {
+	httpServer, err := server.NewHttpServer(cfg.HttpPort, svc, cfg.IngestEnabled)
 	if err != nil {
 		log.Fatalf("Failed to create HTTP server: %v", err)
 	}
@@ -96,7 +114,7 @@ func initHttpServer(cfg config.ServerConfig) *server.HttpServer {
 }
 
 func initGrpcServer(cfg config.ServerConfig, coreService *ingestor.Service, recorder metrics.Recorder) *server.GrpcServer {
-	grpcServer, err := server.NewGrpcServer(cfg.GrpcPort, coreService, recorder)
+	grpcServer, err := server.NewGrpcServer(cfg.GrpcPort, coreService, recorder, cfg.IngestEnabled)
 	if err != nil {
 		log.Fatalf("Failed to create gRPC server: %v", err)
 	}
