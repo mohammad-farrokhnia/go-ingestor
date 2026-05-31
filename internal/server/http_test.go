@@ -8,13 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 )
 
 func newTestServer(t *testing.T, ingestEnabled bool, bufferSize int) *HttpServer {
 	t.Helper()
-	svc := ingestor.NewService(bufferSize, metrics.NewMock())
+	buf := buffer.NewChannelBuffer(bufferSize)
+	svc := ingestor.NewService(buf, metrics.NewMock())
 	hs, err := NewHttpServer(0, svc, ingestEnabled)
 	if err != nil {
 		t.Fatalf("NewHttpServer: %v", err)
@@ -47,7 +49,7 @@ func TestHandleIngest_Success(t *testing.T) {
 	if resp.Status != "OK" {
 		t.Errorf("expected status OK, got %q", resp.Status)
 	}
-	if got := len(hs.ingestor.Buffer); got != 1 {
+	if got := hs.ingestor.Buf().Len(); got != 1 {
 		t.Errorf("expected 1 event in buffer, got %d", got)
 	}
 }

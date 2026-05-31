@@ -3,24 +3,24 @@ package ingestor
 import (
 	"testing"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
 func TestNewService(t *testing.T) {
 	recorder := metrics.NewMock()
-	svc := NewService(10, recorder)
+	buf := buffer.NewChannelBuffer(10)
+	svc := NewService(buf, recorder)
 
 	if svc == nil {
 		t.Fatal("expected service to be created")
 	}
-	if cap(svc.Buffer) != 10 {
-		t.Errorf("expected buffer capacity 10, got %d", cap(svc.Buffer))
-	}
 }
 
 func TestNewService_NilRecorder(t *testing.T) {
-	svc := NewService(5, nil)
+	buf := buffer.NewChannelBuffer(5)
+	svc := NewService(buf, nil)
 
 	if svc == nil {
 		t.Fatal("expected service to be created with nil recorder")
@@ -29,7 +29,8 @@ func TestNewService_NilRecorder(t *testing.T) {
 
 func TestService_Push_Success(t *testing.T) {
 	recorder := metrics.NewMock()
-	svc := NewService(10, recorder)
+	buf := buffer.NewChannelBuffer(10)
+	svc := NewService(buf, recorder)
 
 	req := &pb.IngestRequest{
 		EventId: "test-1",
@@ -45,14 +46,15 @@ func TestService_Push_Success(t *testing.T) {
 	if recorder.GetEventsReceived() != 1 {
 		t.Errorf("expected 1 event received, got %d", recorder.GetEventsReceived())
 	}
-	if len(svc.Buffer) != 1 {
-		t.Errorf("expected 1 event in buffer, got %d", len(svc.Buffer))
+	if buf.Len() != 1 {
+		t.Errorf("expected 1 event in buffer, got %d", buf.Len())
 	}
 }
 
 func TestService_Push_MultipleEvents(t *testing.T) {
 	recorder := metrics.NewMock()
-	svc := NewService(10, recorder)
+	buf := buffer.NewChannelBuffer(10)
+	svc := NewService(buf, recorder)
 
 	for i := 0; i < 5; i++ {
 		req := &pb.IngestRequest{EventId: "test"}
@@ -64,20 +66,19 @@ func TestService_Push_MultipleEvents(t *testing.T) {
 	if recorder.GetEventsReceived() != 5 {
 		t.Errorf("expected 5 events received, got %d", recorder.GetEventsReceived())
 	}
-	if len(svc.Buffer) != 5 {
-		t.Errorf("expected 5 events in buffer, got %d", len(svc.Buffer))
+	if buf.Len() != 5 {
+		t.Errorf("expected 5 events in buffer, got %d", buf.Len())
 	}
 }
 
 func TestService_Push_BufferFull(t *testing.T) {
 	recorder := metrics.NewMock()
-	svc := NewService(2, recorder) // Small buffer
+	buf := buffer.NewChannelBuffer(2)
+	svc := NewService(buf, recorder)
 
-	// Fill buffer
 	svc.Push(&pb.IngestRequest{EventId: "1"})
 	svc.Push(&pb.IngestRequest{EventId: "2"})
 
-	// This should fail
 	err := svc.Push(&pb.IngestRequest{EventId: "3"})
 
 	if err == nil {
@@ -89,14 +90,14 @@ func TestService_Push_BufferFull(t *testing.T) {
 	if recorder.GetEventsDropped() != 1 {
 		t.Errorf("expected 1 event dropped, got %d", recorder.GetEventsDropped())
 	}
-	// Events received should still be incremented (we received it, then dropped)
 	if recorder.GetEventsReceived() != 3 {
 		t.Errorf("expected 3 events received, got %d", recorder.GetEventsReceived())
 	}
 }
 
 func TestService_Push_NilRecorder(t *testing.T) {
-	svc := NewService(10, nil)
+	buf := buffer.NewChannelBuffer(10)
+	svc := NewService(buf, nil)
 
 	req := &pb.IngestRequest{EventId: "test-1"}
 	err := svc.Push(req)
@@ -104,13 +105,14 @@ func TestService_Push_NilRecorder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error with nil recorder, got %v", err)
 	}
-	if len(svc.Buffer) != 1 {
-		t.Errorf("expected 1 event in buffer, got %d", len(svc.Buffer))
+	if buf.Len() != 1 {
+		t.Errorf("expected 1 event in buffer, got %d", buf.Len())
 	}
 }
 
 func TestService_Push_BufferFull_NilRecorder(t *testing.T) {
-	svc := NewService(1, nil)
+	buf := buffer.NewChannelBuffer(1)
+	svc := NewService(buf, nil)
 
 	svc.Push(&pb.IngestRequest{EventId: "1"})
 	err := svc.Push(&pb.IngestRequest{EventId: "2"})
