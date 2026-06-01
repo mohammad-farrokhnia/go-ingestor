@@ -9,7 +9,6 @@
 *.dylib
 /bin/
 /dist/
-*.pb.go
 # Test binary, built with `go test -c`
 *.test
 
@@ -30,6 +29,9 @@ go.work.sum
 *.env
 configs/config.yaml
 configs/config.*.yaml
+
+# Runtime data
+data/
 
 # Editor/IDE
 .idea/

@@ -36,6 +36,11 @@ dlq:
     brokers: ["localhost:9092"]
     topic: "events-dlq"
 
+wal:
+  enabled: false              # enable Write-Ahead Log for crash recovery
+  dir: "data/wal"             # directory for WAL segment files
+  checkpoint_interval: "60s"  # how often to compact the WAL
+
 logging:
   level: "info"   # debug, info, warn, error
   format: "json"   # json or text
