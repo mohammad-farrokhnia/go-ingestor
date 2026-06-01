@@ -1,64 +1,113 @@
 # go-ingestor
 
-A high-throughput, buffer-based ingestion gateway written in Go. Designed to prioritize write-speed and availability by buffering "fire-and-forget" events and batch-forwarding them to various sinks (Kafka, Logs, HTTP).
+A high-throughput, buffer-based ingestion gateway written in Go. Accepts fire-and-forget events via gRPC and HTTP, buffers them in memory (or Redis), and batch-forwards to pluggable sinks with retry, circuit breaker, and dead letter queue guarantees.
 
 ## Architecture
 
 ```
-Client ──► gRPC / HTTP ──► Buffer (channel) ──► Worker Pool ──► Sink(s)
-                                                      │
-                                                      └──► DLQ (on failure)
+  gRPC :50051 ──┐                                                    ┌── LogSink
+                ├──► Service.Push() ──► Buffer ──► Worker Pool ──►──┼── KafkaSink
+  HTTP :8080  ──┘        │               │            │              └── HTTPSink
+                         │          [chan | redis]     │
+                    (non-blocking)                     └── on failure ──► DLQ
 ```
 
-- **Ingestors** — gRPC and HTTP servers accept events.
-- **Buffer** — Bounded Go channel for non-blocking, fire-and-forget ingestion.
-- **Workers** — Concurrent worker pool drains the buffer in configurable batches.
-- **Sinks** — Pluggable destinations (Kafka, HTTP webhook, stdout log). Each wrapped in a circuit breaker.
-- **DLQ** — Dead Letter Queue (file or Kafka) captures events that fail all retry attempts.
+- **Ingestors** — gRPC and HTTP servers accept events
+- **Buffer** — Swappable: Go channel (default) or Redis-backed for multi-replica shared state
+- **Workers** — Concurrent pool with configurable batch size and timeout-based flushing
+- **Sinks** — Pluggable destinations, each wrapped in a circuit breaker with retry + exponential backoff
+- **DLQ** — Dead Letter Queue (file-based daily JSONL or Kafka topic) captures events that exhaust retries
+
+## Features
+
+- Dual ingest protocols (gRPC + HTTP)
+- Swappable buffer backend (channel or Redis)
+- Pluggable sinks: Log, Kafka, HTTP webhook
+- Per-sink circuit breaker (sony/gobreaker)
+- Retry with exponential backoff (3 attempts)
+- Dead Letter Queue (file or Kafka)
+- Prometheus metrics with interface-based recorder
+- Structured JSON logging (log/slog)
+- Graceful shutdown with configurable drain timeout
+- Kubernetes-ready (Deployment, Service, ConfigMap, HPA)
+- GOMAXPROCS auto-tuning for containers
+- CI pipeline (GitHub Actions: lint, test, build, docker)
 
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.22+
-- Protoc compiler (for proto regeneration only)
+- `protoc` compiler (only for proto regeneration)
+- Docker (optional, for containerized/Kafka setup)
 
-### Running Locally
+### Quick Start
 
 ```bash
-cp configs/config.yaml.example configs/config.yaml  # edit as needed
-make proto   # generate gRPC stubs (only if proto changed)
+git clone https://github.com/mohammad-farrokhnia/go-ingestor.git
+cd go-ingestor
+cp configs/config.yaml.example configs/config.yaml
 make run
 ```
 
-## HTTP Ingest Endpoint
-
-**POST** `/ingest`
+### Verify
 
 ```bash
+curl http://localhost:8080/health          # ok
+curl http://localhost:8080/ready           # ready
 curl -X POST http://localhost:8080/ingest \
   -H "Content-Type: application/json" \
-  -d '{"event_id": "evt-1", "source": "web", "payload": "{}", "timestamp": 1717100000}'
+  -d '{"event_id":"evt-1","source":"web","payload":"{}","timestamp":1717100000}'
+# {"status":"OK"}
 ```
 
-| Status | Code | Meaning |
-|--------|------|---------|
-| `OK` | 202 | Event accepted into buffer |
-| `ERROR` | 400 | Missing `event_id` or invalid JSON |
-| `DISABLED` | 503 | Ingest disabled via config |
-| `DROPPED` | 503 | Buffer full — event dropped |
+## API Reference
 
-The endpoint respects the `server.ingest_enabled` config flag and body size is capped at 1 MiB.
+### HTTP Endpoints
 
-## gRPC Ingest
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/ingest` | Accept event into buffer |
+| GET | `/health` | Liveness probe (always 200) |
+| GET | `/ready` | Readiness probe (200 when workers running) |
+| GET | `/metrics` | Prometheus metrics |
 
-The `IngestorService.Ingest` RPC accepts an `IngestRequest` (see `proto/ingestor/v1/ingestor.proto`). Same status semantics as the HTTP endpoint.
+### POST /ingest
+
+**Request body:**
+```json
+{
+  "event_id": "uuid-string",
+  "source": "service-name",
+  "payload": "{\"key\":\"value\"}",
+  "timestamp": 1717100000
+}
+```
+
+**Responses:**
+
+| HTTP | Status | Meaning |
+|------|--------|---------|
+| 202 | `OK` | Event accepted into buffer |
+| 400 | `ERROR` | Missing `event_id`, invalid JSON, unknown fields, body > 1 MiB |
+| 503 | `DISABLED` | Ingest disabled via config |
+| 503 | `DROPPED` | Buffer full, event dropped |
+
+### gRPC
+
+```protobuf
+service IngestorService {
+  rpc Ingest (IngestRequest) returns (IngestResponse);
+}
+```
+
+Port `50051` (configurable). See `proto/ingestor/v1/ingestor.proto` for full contract.
 
 ## Observability
 
 ### Prometheus Metrics
 
-Exposed at `http://localhost:8080/metrics`.
+Exposed at `GET /metrics`.
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -67,16 +116,14 @@ Exposed at `http://localhost:8080/metrics`.
 | `batch_flush_duration_seconds` | Histogram | Batch flush latency |
 | `buffer_current_size` | Gauge | Current buffered event count |
 
-Built with interface-based design (`metrics.Recorder`) for easy backend swapping.
-
 ### Health & Readiness
 
 - `GET /health` — always 200 (liveness)
-- `GET /ready` — 200 when workers are running, 503 during startup/shutdown
+- `GET /ready` — 200 when workers running, 503 during startup/shutdown
 
-## Configuration Reference
+## Configuration
 
-Copy `configs/config.yaml.example` to `configs/config.yaml`. All fields:
+Copy `configs/config.yaml.example` → `configs/config.yaml`:
 
 ```yaml
 server:
@@ -88,7 +135,7 @@ ingestor:
   buffer_size: 1000
 
 buffer:
-  type: "channel"
+  type: "channel"                # "channel" or "redis"
   redis:
     addr: "localhost:6379"
     password: ""
@@ -101,7 +148,7 @@ worker:
   batch_timeout: "5s"
 
 sinks:
-  active: ["log"]          # log, kafka, http
+  active: ["log"]                # log, kafka, http
   kafka:
     brokers: ["localhost:9092"]
     topic: "events"
@@ -111,7 +158,7 @@ sinks:
 
 dlq:
   enabled: true
-  type: "file"             # file, kafka
+  type: "file"                   # file, kafka
   file:
     dir: "data/dlq"
   kafka:
@@ -119,18 +166,18 @@ dlq:
     topic: "events-dlq"
 
 logging:
-  level: "info"            # debug, info, warn, error
-  format: "json"           # json, text
+  level: "info"                  # debug, info, warn, error
+  format: "json"                 # json, text
 
 shutdown:
-  timeout: "30s"           # max time to drain buffer before forcing exit
+  timeout: "30s"
 ```
 
 Environment variables override config via `_` separator (e.g. `SINKS_KAFKA_TOPIC=events`).
 
-## Docker
+## Deployment
 
-### Build & Run
+### Docker
 
 ```bash
 make docker-build
@@ -140,41 +187,64 @@ make docker-run
 ### Docker Compose (with Kafka)
 
 ```bash
-make kafka-up     # starts Zookeeper + Kafka + Kafka UI + ingestor
+make kafka-up      # Zookeeper + Kafka + Kafka UI + ingestor
 make kafka-down
 make kafka-logs
 ```
 
-## Kubernetes
-
-Manifests are in `deployments/k8s/`:
-
-- **deployment.yaml** — 2 replicas, resource limits, liveness (`/health`) and readiness (`/ready`) probes
-- **service.yaml** — ClusterIP exposing gRPC (50051) and HTTP (8080)
-- **configmap.yaml** — full `config.yaml` mounted into pods
-- **hpa.yaml** — CPU-based HorizontalPodAutoscaler (70% target, 2–10 replicas)
-
-GOMAXPROCS is auto-tuned to container CPU limits via `go.uber.org/automaxprocs`.
+### Kubernetes
 
 ```bash
 kubectl apply -f deployments/k8s/
 ```
 
+Manifests in `deployments/k8s/`:
+
+- **deployment.yaml** — 2 replicas, resource limits, liveness/readiness probes
+- **service.yaml** — ClusterIP exposing gRPC (50051) and HTTP (8080)
+- **configmap.yaml** — full config mounted into pods
+- **hpa.yaml** — CPU-based autoscaler (70% target, 2–10 replicas)
+
 ## Scaling
 
-The ingestor is designed to scale horizontally as stateless replicas behind a load balancer.
+Stateless replicas behind a load balancer. Buffer backend determines shared state:
 
 | Buffer Type | Use Case | Trade-off |
-|-------------|----------|----------|
-| `channel` (default) | Single instance or independent replicas | Fastest, no external dependency, events lost if pod dies |
-| `redis` | Shared buffer across replicas | Survives pod restarts, slight latency from network round-trip |
+|-------------|----------|-----------|
+| `channel` | Single instance / independent replicas | Fastest, no deps, events lost if pod dies |
+| `redis` | Shared buffer across replicas | Survives restarts, slight network latency |
 
-Set `buffer.type: redis` and configure `buffer.redis.*` to enable shared buffering.
+When using Kafka as a sink, each replica writes independently. Kafka handles ordering via `event_id` keys and partitioning.
 
-When using **Kafka as a sink**, each replica writes independently. Kafka handles deduplication via `event_id` keys and partitioning.
+## Testing
 
-## Local Kafka Development
-
-### Start Kafka
 ```bash
-make kafka-up
+make test                    # all unit tests
+make lint                    # golangci-lint
+go test -v ./...             # verbose
+go test -cover ./...         # with coverage
+make test-integration        # integration tests (build tag)
+```
+
+## Project Structure
+
+```
+cmd/ingestor/main.go          Entry point, wires all components
+configs/                       Viper config loading + validation
+internal/buffer/               Buffer interface (channel, redis)
+internal/ingestor/             Core Service (Push, Close)
+internal/server/               gRPC + HTTP servers
+internal/worker/               Worker pool (batch, flush, retry)
+internal/sinks/                Sink interface + implementations
+internal/dlq/                  Dead Letter Queue (file, kafka, noop)
+internal/metrics/              Prometheus recorder + interface
+internal/logging/              slog-based structured logger
+proto/ingestor/v1/             Protobuf contract + generated code
+deployments/docker/            Dockerfile + docker-compose
+deployments/k8s/               Kubernetes manifests
+.github/workflows/ci.yaml     CI pipeline
+```
+
+## License
+
+MIT
