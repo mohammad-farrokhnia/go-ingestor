@@ -23,6 +23,8 @@ func New(cfg config.BufferConfig, size int) (Buffer, error) {
 		return NewChannelBuffer(size), nil
 	case "redis":
 		return NewRedisBuffer(cfg.Redis, size)
+	case "hybrid":
+		return NewHybridBuffer(cfg.Hybrid, size)
 	default:
 		return nil, fmt.Errorf("unknown buffer type: %s", cfg.Type)
 	}

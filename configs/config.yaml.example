@@ -7,12 +7,14 @@ ingestor:
   buffer_size: 1000
 
 buffer:
-  type: "channel"      # channel (in-process) or redis (shared across replicas)
+  type: "channel"      # channel | redis | hybrid
   redis:
     addr: "localhost:6379"
     password: ""
     db: 0
     key: "ingestor:buffer"
+  hybrid:
+    dir: "data/buffer"  # disk overflow directory (used when type = hybrid)
 
 worker:
   num_workers: 5

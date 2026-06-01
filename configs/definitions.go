@@ -38,8 +38,13 @@ type IngestorConfig struct {
 }
 
 type BufferConfig struct {
-	Type  string            `mapstructure:"type"`
-	Redis RedisBufferConfig `mapstructure:"redis"`
+	Type   string             `mapstructure:"type"`
+	Redis  RedisBufferConfig  `mapstructure:"redis"`
+	Hybrid HybridBufferConfig `mapstructure:"hybrid"`
+}
+
+type HybridBufferConfig struct {
+	Dir string `mapstructure:"dir"`
 }
 
 type RedisBufferConfig struct {
@@ -96,6 +101,7 @@ type KafkaDLQConfig struct {
 }
 
 const DefaultWALDir = "data/wal"
+const DefaultHybridBufferDir = "data/buffer"
 const DefaultCheckpointInterval = "60s"
 
 type DLQType string

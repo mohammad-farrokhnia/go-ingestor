@@ -29,8 +29,12 @@ func (c *Config) Validate() error {
 		if c.Buffer.Redis.Addr == "" {
 			errs = appendErr(errs, "buffer.redis.addr", "must be set when buffer type is redis")
 		}
+	case "hybrid":
+		if c.Buffer.Hybrid.Dir == "" {
+			c.Buffer.Hybrid.Dir = DefaultHybridBufferDir
+		}
 	default:
-		errs = appendErr(errs, "buffer.type", fmt.Sprintf("unknown buffer type %q (must be channel or redis)", c.Buffer.Type))
+		errs = appendErr(errs, "buffer.type", fmt.Sprintf("unknown buffer type %q (must be channel, redis, or hybrid)", c.Buffer.Type))
 	}
 
 	if c.Worker.NumWorkers <= 0 {
