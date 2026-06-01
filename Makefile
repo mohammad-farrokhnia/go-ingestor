@@ -1,4 +1,4 @@
-.PHONY: run test clean proto kafka-up kafka-down kafka-logs docker-build docker-run lint test-integration
+.PHONY: run test clean proto infra-up infra-down infra-logs docker-build docker-run lint test-integration
 
 run:
 	go run cmd/ingestor/main.go
@@ -26,11 +26,11 @@ docker-build:
 docker-run:
 	docker run --rm -p 50051:50051 -p 8080:8080 -v $(PWD)/configs:/app/configs:ro go-ingestor:latest
 
-kafka-up:
-	docker-compose -f deployments/docker/docker-compose.yaml up -d
+infra-up:
+	docker compose -f deployments/docker/docker-compose.yaml up -d
 
-kafka-down:
-	docker-compose -f deployments/docker/docker-compose.yaml down
+infra-down:
+	docker compose -f deployments/docker/docker-compose.yaml down
 
-kafka-logs:
-	docker-compose -f deployments/docker/docker-compose.yaml logs -f kafka
+infra-logs:
+	docker compose -f deployments/docker/docker-compose.yaml logs -f kafka

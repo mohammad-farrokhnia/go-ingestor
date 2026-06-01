@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.21.12
-// source: proto/ingestor/v1/ingestor.proto
+// source: ingestor/v1/ingestor.proto
 
 package v1
 
@@ -117,5 +117,5 @@ var IngestorService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/ingestor/v1/ingestor.proto",
+	Metadata: "ingestor/v1/ingestor.proto",
 }
