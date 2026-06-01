@@ -11,7 +11,7 @@ import (
 func TestNewService(t *testing.T) {
 	recorder := metrics.NewMock()
 	buf := buffer.NewChannelBuffer(10)
-	svc := NewService(buf, recorder)
+	svc := NewService(buf, recorder, nil)
 
 	if svc == nil {
 		t.Fatal("expected service to be created")
@@ -20,7 +20,7 @@ func TestNewService(t *testing.T) {
 
 func TestNewService_NilRecorder(t *testing.T) {
 	buf := buffer.NewChannelBuffer(5)
-	svc := NewService(buf, nil)
+	svc := NewService(buf, nil, nil)
 
 	if svc == nil {
 		t.Fatal("expected service to be created with nil recorder")
@@ -30,7 +30,7 @@ func TestNewService_NilRecorder(t *testing.T) {
 func TestService_Push_Success(t *testing.T) {
 	recorder := metrics.NewMock()
 	buf := buffer.NewChannelBuffer(10)
-	svc := NewService(buf, recorder)
+	svc := NewService(buf, recorder, nil)
 
 	req := &pb.IngestRequest{
 		EventId: "test-1",
@@ -54,7 +54,7 @@ func TestService_Push_Success(t *testing.T) {
 func TestService_Push_MultipleEvents(t *testing.T) {
 	recorder := metrics.NewMock()
 	buf := buffer.NewChannelBuffer(10)
-	svc := NewService(buf, recorder)
+	svc := NewService(buf, recorder, nil)
 
 	for i := 0; i < 5; i++ {
 		req := &pb.IngestRequest{EventId: "test"}
@@ -74,10 +74,10 @@ func TestService_Push_MultipleEvents(t *testing.T) {
 func TestService_Push_BufferFull(t *testing.T) {
 	recorder := metrics.NewMock()
 	buf := buffer.NewChannelBuffer(2)
-	svc := NewService(buf, recorder)
+	svc := NewService(buf, recorder, nil)
 
-	svc.Push(&pb.IngestRequest{EventId: "1"})
-	svc.Push(&pb.IngestRequest{EventId: "2"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "1"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "2"})
 
 	err := svc.Push(&pb.IngestRequest{EventId: "3"})
 
@@ -97,7 +97,7 @@ func TestService_Push_BufferFull(t *testing.T) {
 
 func TestService_Push_NilRecorder(t *testing.T) {
 	buf := buffer.NewChannelBuffer(10)
-	svc := NewService(buf, nil)
+	svc := NewService(buf, nil, nil)
 
 	req := &pb.IngestRequest{EventId: "test-1"}
 	err := svc.Push(req)
@@ -112,9 +112,9 @@ func TestService_Push_NilRecorder(t *testing.T) {
 
 func TestService_Push_BufferFull_NilRecorder(t *testing.T) {
 	buf := buffer.NewChannelBuffer(1)
-	svc := NewService(buf, nil)
+	svc := NewService(buf, nil, nil)
 
-	svc.Push(&pb.IngestRequest{EventId: "1"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "1"})
 	err := svc.Push(&pb.IngestRequest{EventId: "2"})
 
 	if err == nil {

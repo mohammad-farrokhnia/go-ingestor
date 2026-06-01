@@ -1,23 +1,29 @@
-FROM golang:1.22 AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
+
+RUN apk add --no-cache git
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/ingestor ./cmd/ingestor
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ingestor ./cmd/ingestor
 
 FROM alpine:3.19
 
-RUN adduser -D -g '' app
+RUN apk --no-cache add ca-certificates tzdata && \
+    adduser -D -g '' app && \
+    mkdir -p /app/data/dlq /app/data/wal /app/configs && \
+    chown -R app:app /app
+
 USER app
 WORKDIR /app
 
-COPY --from=builder /app/ingestor /app/ingestor
-COPY --chown=app:app configs/config.yaml.example /app/configs/config.yaml
+COPY --from=builder /app/ingestor ./ingestor
+COPY --chown=app:app configs/config.yaml.example ./configs/config.yaml
 
-EXPOSE 50051 8000
+EXPOSE 50051 8080
 
-ENTRYPOINT ["/app/ingestor"]
+ENTRYPOINT ["./ingestor"]

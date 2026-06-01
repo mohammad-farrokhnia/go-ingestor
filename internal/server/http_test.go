@@ -16,7 +16,7 @@ import (
 func newTestServer(t *testing.T, ingestEnabled bool, bufferSize int) *HttpServer {
 	t.Helper()
 	buf := buffer.NewChannelBuffer(bufferSize)
-	svc := ingestor.NewService(buf, metrics.NewMock())
+	svc := ingestor.NewService(buf, metrics.NewMock(), nil)
 	hs, err := NewHttpServer(0, svc, ingestEnabled)
 	if err != nil {
 		t.Fatalf("NewHttpServer: %v", err)

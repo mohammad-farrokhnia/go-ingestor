@@ -92,6 +92,19 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.WAL.Enabled {
+		if c.WAL.Dir == "" {
+			c.WAL.Dir = DefaultWALDir
+		}
+		if c.WAL.CheckpointInterval == "" {
+			c.WAL.CheckpointInterval = DefaultCheckpointInterval
+		} else if d, err := time.ParseDuration(c.WAL.CheckpointInterval); err != nil {
+			errs = appendErr(errs, "wal.checkpoint_interval", fmt.Sprintf("invalid duration: %v", err))
+		} else if d <= 0 {
+			errs = appendErr(errs, "wal.checkpoint_interval", "must be > 0")
+		}
+	}
+
 	if c.Shutdown.Timeout != "" {
 		if d, err := time.ParseDuration(c.Shutdown.Timeout); err != nil {
 			errs = appendErr(errs, "shutdown.timeout", fmt.Sprintf("invalid duration: %v", err))
