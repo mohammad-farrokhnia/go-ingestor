@@ -6,7 +6,6 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-// NoOpWAL is a no-op WAL that does nothing. Used when WAL is disabled.
 type NoOpWAL struct {
 	seq atomic.Uint64
 }

@@ -176,7 +176,7 @@ func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.Http
 		slog.Error("Failed to create HTTP server", "err", err)
 		os.Exit(1)
 	}
-	go httpServer.Start() //nolint:errcheck // runs in goroutine, errors logged internally
+	go httpServer.Start() //nolint:errcheck 
 	return httpServer
 }
 
@@ -186,6 +186,6 @@ func initGrpcServer(cfg config.ServerConfig, coreService *ingestor.Service, reco
 		slog.Error("Failed to create gRPC server", "err", err)
 		os.Exit(1)
 	}
-	go grpcServer.Start() //nolint:errcheck // runs in goroutine, errors logged internally
+	go grpcServer.Start() //nolint:errcheck 
 	return grpcServer
 }
