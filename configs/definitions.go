@@ -7,8 +7,15 @@ type Config struct {
 	Worker   WorkerConfig   `mapstructure:"worker"`
 	Sinks    SinksConfig    `mapstructure:"sinks"`
 	DLQ      DLQConfig      `mapstructure:"dlq"`
+	WAL      WALConfig      `mapstructure:"wal"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	Shutdown ShutdownConfig `mapstructure:"shutdown"`
+}
+
+type WALConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	Dir                string `mapstructure:"dir"`
+	CheckpointInterval string `mapstructure:"checkpoint_interval"`
 }
 
 type ShutdownConfig struct {
@@ -87,6 +94,9 @@ type KafkaDLQConfig struct {
 	Brokers []string `mapstructure:"brokers"`
 	Topic   string   `mapstructure:"topic"`
 }
+
+const DefaultWALDir = "data/wal"
+const DefaultCheckpointInterval = "60s"
 
 type DLQType string
 

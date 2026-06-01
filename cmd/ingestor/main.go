@@ -18,6 +18,7 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
 )
 
@@ -28,13 +29,24 @@ func main() {
 
 	recorder := metrics.New()
 
+	var w wal.WAL
+	if cfg.WAL.Enabled {
+		fileWAL, walErr := wal.NewFileWAL(cfg.WAL.Dir)
+		if walErr != nil {
+			slog.Error("Failed to create WAL", "err", walErr)
+			os.Exit(1)
+		}
+		w = fileWAL
+		logger.Info("WAL enabled", "dir", cfg.WAL.Dir)
+	}
+
 	buf, err := buffer.New(cfg.Buffer, cfg.Ingestor.BufferSize)
 	if err != nil {
 		slog.Error("Failed to create buffer", "err", err)
 		os.Exit(1)
 	}
 
-	coreService := ingestor.NewService(buf, recorder)
+	coreService := ingestor.NewService(buf, recorder, w)
 
 	mySinks := initSinks(cfg)
 
@@ -54,7 +66,23 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerWg := worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buf().Chan(), cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance)
+	if w != nil {
+		entries, recoverErr := w.Recover()
+		if recoverErr != nil {
+			slog.Error("WAL recovery failed", "err", recoverErr)
+			os.Exit(1)
+		}
+		if len(entries) > 0 {
+			logger.Info("Replaying WAL entries", "count", len(entries))
+			for _, entry := range entries {
+				if pushErr := coreService.Push(entry.Event); pushErr != nil {
+					logger.Warn("WAL replay: failed to push event", "event_id", entry.Event.EventId, "err", pushErr)
+				}
+			}
+		}
+	}
+
+	workerWg := worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buf().Chan(), cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance, w, coreService.SeqTracker())
 
 	httpServer.SetReady(true)
 	logger.Info("Ingestor service ready")
@@ -104,6 +132,12 @@ func main() {
 
 	if err := dlqInstance.Close(); err != nil {
 		logger.Error("Error closing DLQ", "dlq", dlqInstance.Name(), "err", err)
+	}
+
+	if w != nil {
+		if err := w.Close(); err != nil {
+			logger.Error("Error closing WAL", "err", err)
+		}
 	}
 
 	logger.Info("Shutdown complete")
