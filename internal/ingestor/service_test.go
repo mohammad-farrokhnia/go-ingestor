@@ -76,8 +76,8 @@ func TestService_Push_BufferFull(t *testing.T) {
 	buf := buffer.NewChannelBuffer(2)
 	svc := NewService(buf, recorder, nil)
 
-	svc.Push(&pb.IngestRequest{EventId: "1"})
-	svc.Push(&pb.IngestRequest{EventId: "2"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "1"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "2"})
 
 	err := svc.Push(&pb.IngestRequest{EventId: "3"})
 
@@ -114,7 +114,7 @@ func TestService_Push_BufferFull_NilRecorder(t *testing.T) {
 	buf := buffer.NewChannelBuffer(1)
 	svc := NewService(buf, nil, nil)
 
-	svc.Push(&pb.IngestRequest{EventId: "1"})
+	_ = svc.Push(&pb.IngestRequest{EventId: "1"})
 	err := svc.Push(&pb.IngestRequest{EventId: "2"})
 
 	if err == nil {

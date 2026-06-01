@@ -131,8 +131,12 @@ func TestFileWAL_Checkpoint(t *testing.T) {
 	_, _ = w.Append(&pb.IngestRequest{EventId: "evt-2"})
 	seq3, _ := w.Append(&pb.IngestRequest{EventId: "evt-3"})
 
-	w.Acknowledge(seq1)
-	w.Acknowledge(seq3)
+	if err := w.Acknowledge(seq1); err != nil {
+		t.Fatalf("Acknowledge seq1: %v", err)
+	}
+	if err := w.Acknowledge(seq3); err != nil {
+		t.Fatalf("Acknowledge seq3: %v", err)
+	}
 
 	if err := w.Checkpoint(); err != nil {
 		t.Fatalf("Checkpoint: %v", err)
