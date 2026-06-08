@@ -46,8 +46,8 @@ func TestHandleIngest_Success(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode resp: %v", err)
 	}
-	if resp.Status != "OK" {
-		t.Errorf("expected status OK, got %q", resp.Status)
+	if resp.Status != "Accepted" {
+		t.Errorf("expected status Accepted, got %q", resp.Status)
 	}
 	if got := hs.ingestor.Buf().Len(); got != 1 {
 		t.Errorf("expected 1 event in buffer, got %d", got)

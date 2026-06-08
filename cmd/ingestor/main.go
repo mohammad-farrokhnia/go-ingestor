@@ -22,6 +22,8 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
 )
 
+var Version = "dev"
+
 func main() {
 	cfg := loadConfig()
 	logging.Init(cfg.Logging.Level, cfg.Logging.Format)
@@ -52,6 +54,7 @@ func main() {
 
 	dlqInstance := initDLQ(cfg)
 
+	logger.Info("Starting go-ingestor", "version", Version)
 	logger.Info("Starting ingestor service",
 		"buffer_type", cfg.Buffer.Type,
 		"buffer_size", cfg.Ingestor.BufferSize,
@@ -176,7 +179,7 @@ func initHttpServer(cfg config.ServerConfig, svc *ingestor.Service) *server.Http
 		slog.Error("Failed to create HTTP server", "err", err)
 		os.Exit(1)
 	}
-	go httpServer.Start() //nolint:errcheck 
+	go httpServer.Start() //nolint:errcheck
 	return httpServer
 }
 
@@ -186,6 +189,6 @@ func initGrpcServer(cfg config.ServerConfig, coreService *ingestor.Service, reco
 		slog.Error("Failed to create gRPC server", "err", err)
 		os.Exit(1)
 	}
-	go grpcServer.Start() //nolint:errcheck 
+	go grpcServer.Start() //nolint:errcheck
 	return grpcServer
 }

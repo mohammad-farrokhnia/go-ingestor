@@ -99,7 +99,7 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeIngestJSON(w, http.StatusAccepted, httpIngestResponse{Status: "OK"})
+	writeIngestJSON(w, http.StatusAccepted, httpIngestResponse{Status: "Accepted"})
 }
 
 func writeIngestJSON(w http.ResponseWriter, status int, body httpIngestResponse) {
