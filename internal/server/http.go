@@ -22,6 +22,10 @@ type HttpServer struct {
 	ingestor      *ingestor.Service
 }
 
+func (s *HttpServer) Handler() http.Handler {
+	return s.server.Handler
+}
+
 func NewHttpServer(port int, svc *ingestor.Service, ingestEnabled bool) (*HttpServer, error) {
 	addr := fmt.Sprintf(":%d", port)
 
