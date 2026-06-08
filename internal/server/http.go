@@ -22,6 +22,10 @@ type HttpServer struct {
 	ingestor      *ingestor.Service
 }
 
+func (s *HttpServer) Handler() http.Handler {
+	return s.server.Handler
+}
+
 func NewHttpServer(port int, svc *ingestor.Service, ingestEnabled bool) (*HttpServer, error) {
 	addr := fmt.Sprintf(":%d", port)
 
@@ -99,7 +103,7 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeIngestJSON(w, http.StatusAccepted, httpIngestResponse{Status: "OK"})
+	writeIngestJSON(w, http.StatusAccepted, httpIngestResponse{Status: "Accepted"})
 }
 
 func writeIngestJSON(w http.ResponseWriter, status int, body httpIngestResponse) {

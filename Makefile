@@ -1,7 +1,13 @@
-.PHONY: run test clean proto infra-up infra-down infra-logs docker-build docker-run lint test-integration
+.PHONY: run build test clean proto infra-up infra-down infra-logs docker-build docker-run lint test-integration
+
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS=-ldflags "-X main.Version=$(VERSION)"
+
+build:
+	go build $(LDFLAGS) -o bin/ingestor ./cmd/ingestor
 
 run:
-	go run cmd/ingestor/main.go
+	go run $(LDFLAGS) ./cmd/ingestor
 
 test:
 	go test ./...
