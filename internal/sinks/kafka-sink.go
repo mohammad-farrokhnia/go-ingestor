@@ -8,6 +8,7 @@ import (
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 	"github.com/segmentio/kafka-go"
 )
@@ -45,7 +46,7 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 		payload, err := json.Marshal(event)
 		if err != nil {
 			slog.Error("Failed to marshal event", "event_id", event.EventId, "err", err)
-			continue
+			return apperr.NewPermanent(ks.Name(), fmt.Errorf("kafka marshal failed for event %s: %w", event.EventId, err))
 		}
 		messages = append(messages, kafka.Message{
 			Key:   []byte(event.EventId),
@@ -54,7 +55,7 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 	}
 
 	if err := ks.writer.WriteMessages(ctx, messages...); err != nil {
-		return fmt.Errorf("kafka write failed: %w", err)
+		return apperr.NewTransient(ks.Name(), fmt.Errorf("kafka write failed: %w", err))
 	}
 
 	slog.Debug("Wrote messages to Kafka", "count", len(messages), "topic", ks.topic)

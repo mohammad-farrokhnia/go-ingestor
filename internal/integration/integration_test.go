@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
@@ -46,7 +47,10 @@ func getFreePort(t *testing.T) int {
 		t.Fatalf("getFreePort: %v", err)
 	}
 	port := lis.Addr().(*net.TCPAddr).Port
-	lis.Close()
+	errClose := lis.Close()
+	if errClose != nil {
+		t.Fatalf("getFreePort on closing listener: %v", err)
+	}
 	return port
 }
 
@@ -126,7 +130,12 @@ func newPipeline(
 		if err != nil {
 			t.Fatalf("newPipeline: create WAL: %v", err)
 		}
-		t.Cleanup(func() { fw.Close() })
+		t.Cleanup(func() {
+			err := fw.Close()
+			if err != nil {
+				t.Fatalf("newPipeline: cleanup: %v", err)
+			}
+		})
 		w = fw
 	}
 
@@ -597,5 +606,46 @@ func TestIntegration_MultipleWorkers_AllEventsDelivered(t *testing.T) {
 		return mockSink.TotalEvents() == totalEvents
 	}) {
 		t.Fatalf("expected %d events at sink, got %d", totalEvents, mockSink.TotalEvents())
+	}
+}
+
+func TestIntegration_PermanentError_SkipsRetries(t *testing.T) {
+	failSink := sinks.NewMockSink()
+	failSink.SetError(apperr.NewPermanent("MockSink", errors.New("400 bad request")))
+
+	capDLQ := &capturingDLQ{}
+
+	opts := defaultOpts()
+	opts.batchSize = 3
+	opts.batchTimeout = "50ms"
+	opts.numWorkers = 1
+
+	svc, cancel, wg := newPipeline(t, opts, failSink, capDLQ)
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	const eventCount = 3
+	for i := 0; i < eventCount; i++ {
+		if err := svc.Push(&pb.IngestRequest{
+			EventId: fmt.Sprintf("perm-%d", i),
+			Source:  "permanent-test",
+		}); err != nil {
+			t.Fatalf("Push(%d): %v", i, err)
+		}
+	}
+
+	if !waitFor(t, 2*time.Second, 20*time.Millisecond, func() bool {
+		return capDLQ.Len() == eventCount
+	}) {
+		t.Fatalf("DLQ has %d entries after timeout, want %d", capDLQ.Len(), eventCount)
+	}
+	if got := failSink.CallCount(); got != 1 {
+		t.Errorf("sink.Write called %d times, want 1 (permanent errors must not retry)", got)
+	}
+
+	if got := capDLQ.Len(); got != eventCount {
+		t.Errorf("DLQ has %d entries, want %d", got, eventCount)
 	}
 }

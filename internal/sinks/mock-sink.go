@@ -8,10 +8,11 @@ import (
 )
 
 type MockSink struct {
-	mu       sync.Mutex
-	batches  [][]*pb.IngestRequest
-	writeErr error
-	closed   bool
+	mu        sync.Mutex
+	batches   [][]*pb.IngestRequest
+	writeErr  error
+	closed    bool
+	callCount int
 }
 
 func NewMockSink() *MockSink {
@@ -19,6 +20,9 @@ func NewMockSink() *MockSink {
 }
 
 func (m *MockSink) Write(ctx context.Context, batch []*pb.IngestRequest) error {
+	m.mu.Lock()
+	m.callCount++
+	m.mu.Unlock()
 	if m.writeErr != nil {
 		return m.writeErr
 	}
@@ -79,4 +83,10 @@ func (m *MockSink) Reset() {
 	m.batches = nil
 	m.writeErr = nil
 	m.closed = false
+}
+
+func (m *MockSink) CallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.callCount
 }

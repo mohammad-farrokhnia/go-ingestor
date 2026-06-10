@@ -11,6 +11,7 @@ import (
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
@@ -48,18 +49,18 @@ func (hs *HTTPSink) Write(ctx context.Context, batch []*pb.IngestRequest) error 
 
 	payload, err := json.Marshal(batch)
 	if err != nil {
-		return fmt.Errorf("failed to marshal batch: %w", err)
+		return apperr.NewPermanent(hs.Name(), fmt.Errorf("failed to marshal batch: %w", err))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, hs.url, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return apperr.NewPermanent(hs.Name(), fmt.Errorf("failed to create request: %w", err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := hs.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("http request failed: %w", err)
+		return apperr.NewTransient(hs.Name(), fmt.Errorf("http request failed: %w", err))
 	}
 	defer func() {
 		if _, drainErr := io.Copy(io.Discard, resp.Body); drainErr != nil {
@@ -71,7 +72,12 @@ func (hs *HTTPSink) Write(ctx context.Context, batch []*pb.IngestRequest) error 
 	}()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("http sink returned status %d", resp.StatusCode)
+		cause := fmt.Errorf("http sink returned status %d", resp.StatusCode)
+		return &apperr.SinkError{
+			Class:    apperr.ClassifyHTTPStatus(resp.StatusCode),
+			SinkName: hs.Name(),
+			Cause:    cause,
+		}
 	}
 
 	slog.Debug("Sent events to HTTP sink", "count", len(batch), "url", hs.url, "status", resp.StatusCode)
