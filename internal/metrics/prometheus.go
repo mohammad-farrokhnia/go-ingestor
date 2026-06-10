@@ -11,6 +11,7 @@ type prometheusRecorder struct {
 	eventsDroppedTotal        prometheus.Counter
 	batchFlushDurationSeconds prometheus.Histogram
 	bufferCurrentSize         prometheus.Gauge
+	workerPanicsTotal         prometheus.Counter
 }
 
 var (
@@ -38,6 +39,10 @@ func newPrometheusRecorder() *prometheusRecorder {
 				Name: "buffer_current_size",
 				Help: "Current number of events buffered in memory.",
 			}),
+			workerPanicsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "worker_panics_total",
+				Help: "Total number of worker goroutine panics recovered.",
+			}),
 		}
 
 		prometheus.MustRegister(
@@ -45,6 +50,7 @@ func newPrometheusRecorder() *prometheusRecorder {
 			promInstance.eventsDroppedTotal,
 			promInstance.batchFlushDurationSeconds,
 			promInstance.bufferCurrentSize,
+			promInstance.workerPanicsTotal,
 		)
 	})
 
@@ -65,4 +71,8 @@ func (r *prometheusRecorder) ObserveBatchFlush(seconds float64) {
 
 func (r *prometheusRecorder) SetBufferSize(size int) {
 	r.bufferCurrentSize.Set(float64(size))
+}
+
+func (r *prometheusRecorder) IncWorkerPanics() {
+    r.workerPanicsTotal.Inc()
 }

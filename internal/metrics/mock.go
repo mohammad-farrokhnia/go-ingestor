@@ -7,6 +7,7 @@ type MockRecorder struct {
 	eventsDropped   atomic.Int64
 	batchFlushCount atomic.Int64
 	bufferSize      atomic.Int64
+	workerPanics    atomic.Int64
 }
 
 func NewMock() *MockRecorder {
@@ -39,4 +40,8 @@ func (m *MockRecorder) Reset() {
 	m.eventsDropped.Store(0)
 	m.batchFlushCount.Store(0)
 	m.bufferSize.Store(0)
+	m.workerPanics.Store(0)
 }
+
+func (m *MockRecorder) IncWorkerPanics() { m.workerPanics.Add(1) }
+func (m *MockRecorder) GetWorkerPanicCount() int64 { return m.workerPanics.Load() }
