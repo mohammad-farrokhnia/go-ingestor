@@ -2,9 +2,11 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
@@ -211,5 +213,39 @@ func TestWorker_MultipleBatches(t *testing.T) {
 	}
 	if mockSink.TotalEvents() < 4 {
 		t.Errorf("expected at least 4 events flushed, got %d", mockSink.TotalEvents())
+	}
+}
+func TestWriteWithRetry_PermanentError_CallsSinkOnce(t *testing.T) {
+	mockSink := sinks.NewMockSink()
+	mockSink.SetError(apperr.NewPermanent("MockSink", errors.New("400 bad request")))
+
+	batch := []*pb.IngestRequest{{EventId: "perm-1"}}
+
+	err := writeWithRetry(context.Background(), mockSink, batch)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !apperr.IsPermanent(err) {
+		t.Errorf("expected permanent error back, got transient: %v", err)
+	}
+	if got := mockSink.CallCount(); got != 1 {
+		t.Errorf("Write called %d times for permanent error, want exactly 1", got)
+	}
+}
+
+func TestWriteWithRetry_TransientError_RetriesMaxTimes(t *testing.T) {
+	mockSink := sinks.NewMockSink()
+	mockSink.SetError(errors.New("connection refused"))
+
+	batch := []*pb.IngestRequest{{EventId: "trans-1"}}
+
+	err := writeWithRetry(context.Background(), mockSink, batch)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got := mockSink.CallCount(); got != maxRetries {
+		t.Errorf("Write called %d times for transient error, want %d", got, maxRetries)
 	}
 }

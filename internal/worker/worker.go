@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
@@ -84,7 +85,12 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 	for _, sink := range sinkList {
 		if err := writeWithRetry(ctx, sink, batch); err != nil {
 			allSucceeded = false
-			slog.Error("Failed writing to sink after retries", "worker", workerID, "sink", sink.Name(), "retries", maxRetries, "err", err)
+			slog.Error("Sink write failed, routing to DLQ",
+				"worker", workerID,
+				"sink", sink.Name(),
+				"permanent", apperr.IsPermanent(err),
+				"err", err,
+			)
 
 			for _, event := range batch {
 				if dlqErr := dlq.Push(ctx, event, sink.Name(), err); dlqErr != nil {
@@ -120,10 +126,24 @@ func writeWithRetry(ctx context.Context, sink sinks.Sink, batch []*pb.IngestRequ
 		}
 		lastErr = err
 
+		if apperr.IsPermanent(err) {
+			slog.Warn("Permanent sink error — skipping retries",
+				"sink", sink.Name(),
+				"attempt", attempt,
+				"err", err,
+			)
+			return err
+		}
+
 		if attempt < maxRetries {
 			backoff := time.Duration(attempt*attempt) * 100 * time.Millisecond
-			slog.Warn("Sink write failed, retrying", "sink", sink.Name(), "attempt", attempt, "max_retries", maxRetries, "backoff", backoff, "err", err)
-
+			slog.Warn("Transient sink error — retrying",
+				"sink", sink.Name(),
+				"attempt", attempt,
+				"max_retries", maxRetries,
+				"backoff", backoff,
+				"err", err,
+			)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
