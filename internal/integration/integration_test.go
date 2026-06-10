@@ -46,7 +46,10 @@ func getFreePort(t *testing.T) int {
 		t.Fatalf("getFreePort: %v", err)
 	}
 	port := lis.Addr().(*net.TCPAddr).Port
-	lis.Close()
+	errClose := lis.Close()
+	if errClose != nil {
+		t.Fatalf("getFreePort on closing listener: %v", err)
+	}
 	return port
 }
 
@@ -126,7 +129,12 @@ func newPipeline(
 		if err != nil {
 			t.Fatalf("newPipeline: create WAL: %v", err)
 		}
-		t.Cleanup(func() { fw.Close() })
+		t.Cleanup(func() {
+			err := fw.Close()
+			if err != nil {
+				t.Fatalf("newPipeline: cleanup: %v", err)
+			}
+		})
 		w = fw
 	}
 

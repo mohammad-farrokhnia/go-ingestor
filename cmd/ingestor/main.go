@@ -109,8 +109,10 @@ func main() {
 		logger.Error("HTTP shutdown error", "err", err)
 	}
 
-	coreService.Close()
-
+	e := coreService.Close()
+	if e != nil {
+		logger.Error("Failed to close the core service properly:", e)
+	}
 	logger.Info("Draining buffer", "timeout", shutdownTimeout.String())
 	drained := make(chan struct{})
 	go func() {
