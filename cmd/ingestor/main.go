@@ -14,7 +14,6 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/logging"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
@@ -26,8 +25,6 @@ var Version = "dev"
 
 func main() {
 	cfg := loadConfig()
-	logging.Init(cfg.Logging.Level, cfg.Logging.Format)
-	logger := logging.L()
 
 	recorder := metrics.New()
 
@@ -39,7 +36,7 @@ func main() {
 			os.Exit(1)
 		}
 		w = fileWAL
-		logger.Info("WAL enabled", "dir", cfg.WAL.Dir)
+		slog.Info("WAL enabled", "dir", cfg.WAL.Dir)
 	}
 
 	buf, err := buffer.New(cfg.Buffer, cfg.Ingestor.BufferSize)
@@ -54,8 +51,8 @@ func main() {
 
 	dlqInstance := initDLQ(cfg)
 
-	logger.Info("Starting go-ingestor", "version", Version)
-	logger.Info("Starting ingestor service",
+	slog.Info("Starting go-ingestor", "version", Version)
+	slog.Info("Starting ingestor service",
 		"buffer_type", cfg.Buffer.Type,
 		"buffer_size", cfg.Ingestor.BufferSize,
 		"workers", cfg.Worker.NumWorkers,
@@ -76,10 +73,10 @@ func main() {
 			os.Exit(1)
 		}
 		if len(entries) > 0 {
-			logger.Info("Replaying WAL entries", "count", len(entries))
+			slog.Info("Replaying WAL entries", "count", len(entries))
 			for _, entry := range entries {
 				if pushErr := coreService.Push(entry.Event); pushErr != nil {
-					logger.Warn("WAL replay: failed to push event", "event_id", entry.Event.EventId, "err", pushErr)
+					slog.Warn("WAL replay: failed to push event", "event_id", entry.Event.EventId, "err", pushErr)
 				}
 			}
 		}
@@ -88,13 +85,13 @@ func main() {
 	workerWg := worker.Start(ctx, cfg.Worker.NumWorkers, coreService.Buf().Chan(), cfg.Worker.BatchSize, cfg.Worker.BatchTimeout, mySinks, recorder, dlqInstance, w, coreService.SeqTracker())
 
 	httpServer.SetReady(true)
-	logger.Info("Ingestor service ready")
+	slog.Info("Ingestor service ready")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("Shutdown signal received")
+	slog.Info("Shutdown signal received")
 
 	httpServer.SetReady(false)
 	httpServer.SetIngestEnabled(false)
@@ -106,14 +103,14 @@ func main() {
 
 	grpcServer.Stop()
 	if err := httpServer.Stop(shutdownCtx); err != nil {
-		logger.Error("HTTP shutdown error", "err", err)
+		slog.Error("HTTP shutdown error", "err", err)
 	}
 
 	e := coreService.Close()
 	if e != nil {
-		logger.Error("Failed to close the core service properly:", "err", e)
+		slog.Error("Failed to close the core service properly:", "err", e)
 	}
-	logger.Info("Draining buffer", "timeout", shutdownTimeout.String())
+	slog.Info("Draining buffer", "timeout", shutdownTimeout.String())
 	drained := make(chan struct{})
 	go func() {
 		workerWg.Wait()
@@ -122,30 +119,30 @@ func main() {
 
 	select {
 	case <-drained:
-		logger.Info("All workers drained successfully")
+		slog.Info("All workers drained successfully")
 	case <-shutdownCtx.Done():
-		logger.Warn("Shutdown timeout exceeded; forcing worker stop", "timeout", shutdownTimeout.String())
+		slog.Warn("Shutdown timeout exceeded; forcing worker stop", "timeout", shutdownTimeout.String())
 		cancel()
 		<-drained
 	}
 
 	for _, sink := range mySinks {
 		if err := sink.Close(); err != nil {
-			logger.Error("Error closing sink", "sink", sink.Name(), "err", err)
+			slog.Error("Error closing sink", "sink", sink.Name(), "err", err)
 		}
 	}
 
 	if err := dlqInstance.Close(); err != nil {
-		logger.Error("Error closing DLQ", "dlq", dlqInstance.Name(), "err", err)
+		slog.Error("Error closing DLQ", "dlq", dlqInstance.Name(), "err", err)
 	}
 
 	if w != nil {
 		if err := w.Close(); err != nil {
-			logger.Error("Error closing WAL", "err", err)
+			slog.Error("Error closing WAL", "err", err)
 		}
 	}
 
-	logger.Info("Shutdown complete")
+	slog.Info("Shutdown complete")
 }
 
 func initDLQ(cfg *config.Config) dlq.DeadLetterQueue {
