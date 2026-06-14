@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
@@ -648,4 +649,73 @@ func TestIntegration_PermanentError_SkipsRetries(t *testing.T) {
 	if got := capDLQ.Len(); got != eventCount {
 		t.Errorf("DLQ has %d entries, want %d", got, eventCount)
 	}
+}
+
+
+func TestIntegration_DLQReplay_ReprocessesEvents(t *testing.T) {
+    const eventCount = 3
+
+    fileDLQ, err := dlq.NewDLQ(config.DLQConfig{
+        Enabled: true,
+        Type:    "file",
+        File:    config.FileDLQConfig{Dir: t.TempDir()},
+    })
+    if err != nil {
+        t.Fatalf("create FileDLQ: %v", err)
+    }
+    defer fileDLQ.Close()
+
+    ctx := context.Background()
+    for i := 0; i < eventCount; i++ {
+        fileDLQ.Push(ctx,
+            &pb.IngestRequest{EventId: fmt.Sprintf("replay-intg-%d", i), Source: "dlq-test"},
+            "TestSink",
+            errors.New("sink was down"),
+        )
+    }
+
+    workingSink := sinks.NewMockSink()
+    svc, cancel, wg := newPipeline(t, defaultOpts(), workingSink, dlq.NewNoOpDLQ())
+    defer func() { cancel(); wg.Wait() }()
+
+    hs, err := server.NewHttpServer(0, svc, true)
+    if err != nil {
+        t.Fatalf("NewHttpServer: %v", err)
+    }
+    hs.SetDLQ(fileDLQ)
+
+    ts := httptest.NewServer(hs.Handler())
+    defer ts.Close()
+
+    resp, err := http.Post(ts.URL+"/admin/dlq/replay", "application/json", nil)
+    if err != nil {
+        t.Fatalf("POST /admin/dlq/replay: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        t.Fatalf("expected 200, got %d", resp.StatusCode)
+    }
+
+    var result struct {
+        Replayed int `json:"replayed"`
+        Failed   int `json:"failed"`
+        Total    int `json:"total"`
+    }
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        t.Fatalf("decode replay response: %v", err)
+    }
+    if result.Replayed != eventCount {
+        t.Errorf("replay response: replayed=%d, want %d", result.Replayed, eventCount)
+    }
+    if result.Failed != 0 {
+        t.Errorf("replay response: failed=%d, want 0", result.Failed)
+    }
+
+    if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
+        return workingSink.TotalEvents() == eventCount
+    }) {
+        t.Fatalf("replayed events did not reach sink: got %d, want %d",
+            workingSink.TotalEvents(), eventCount)
+    }
 }

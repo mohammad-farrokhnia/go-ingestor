@@ -2,15 +2,21 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
+	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
 func newTestServer(t *testing.T, ingestEnabled bool, bufferSize int) *HttpServer {
@@ -141,5 +147,120 @@ func TestHandleHealthAndReady(t *testing.T) {
 	hs.handleReady(wReady, httptest.NewRequest(http.MethodGet, "/ready", nil))
 	if wReady.Code != http.StatusOK {
 		t.Errorf("expected 200 from /ready when ready, got %d", wReady.Code)
+	}
+}
+
+func newTestFileDLQ(t *testing.T) dlq.DeadLetterQueue {
+	t.Helper()
+	d, err := dlq.NewDLQ(config.DLQConfig{
+		Enabled: true,
+		Type:    "file",
+		File:    config.FileDLQConfig{Dir: t.TempDir()},
+	})
+	if err != nil {
+		t.Fatalf("create test FileDLQ: %v", err)
+	}
+	t.Cleanup(func() { d.Close() })
+	return d
+}
+
+func TestHandleDLQReplay_EmptyDLQ(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	hs.handleDLQReplay(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp dlqReplayResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Total != 0 {
+		t.Errorf("expected total=0, got %d", resp.Total)
+	}
+}
+
+func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
+	fileDLQ := newTestFileDLQ(t)
+
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		fileDLQ.Push(ctx, &pb.IngestRequest{
+			EventId: fmt.Sprintf("replay-%d", i),
+			Source:  "test",
+		}, "TestSink", errors.New("sink down"))
+	}
+
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(fileDLQ)
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp dlqReplayResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Replayed != 3 {
+		t.Errorf("expected replayed=3, got %d", resp.Replayed)
+	}
+	if resp.Failed != 0 {
+		t.Errorf("expected failed=0, got %d", resp.Failed)
+	}
+	if resp.Total != 3 {
+		t.Errorf("expected total=3, got %d", resp.Total)
+	}
+}
+
+func TestHandleDLQReplay_WrongMethod(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodGet, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleDLQReplay_NonReplayableDLQ_Returns501(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(dlq.NewNoOpDLQ()) // NoOpDLQ does not implement Replayable
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("expected 501, got %d", w.Code)
+	}
+}
+
+func TestHandleDLQStats(t *testing.T) {
+	fileDLQ := newTestFileDLQ(t)
+
+	ctx := context.Background()
+	fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-1", Source: "test"}, "Sink", errors.New("err"))
+	fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-2", Source: "test"}, "Sink", errors.New("err"))
+
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(fileDLQ)
+
+	w := httptest.NewRecorder()
+	hs.handleDLQStats(w, httptest.NewRequest(http.MethodGet, "/admin/dlq/stats", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var stats dlq.DLQStats
+	json.NewDecoder(w.Body).Decode(&stats)
+	if stats.TotalEntries != 2 {
+		t.Errorf("expected 2 entries, got %d", stats.TotalEntries)
 	}
 }

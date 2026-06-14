@@ -60,6 +60,7 @@ func main() {
 	)
 
 	httpServer := initHttpServer(cfg.Server, coreService)
+	httpServer.SetDLQ(dlqInstance)
 
 	grpcServer := initGrpcServer(cfg.Server, coreService, recorder)
 
