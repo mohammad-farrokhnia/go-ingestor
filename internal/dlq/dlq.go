@@ -12,9 +12,9 @@ func NewDLQ(cfg config.DLQConfig) (DeadLetterQueue, error) {
 	}
 
 	switch DLQType(cfg.Type) {
-	case dLQTypeFile:
+	case config.DLQTypeFile:
 		return newFileDLQ(cfg.File.Dir)
-	case dLQTypeKafka:
+	case config.DLQTypeKafka:
 		return NewKafkaDLQ(cfg.Kafka)
 	default:
 		return nil, fmt.Errorf("unknown DLQ type: %s", cfg.Type)
