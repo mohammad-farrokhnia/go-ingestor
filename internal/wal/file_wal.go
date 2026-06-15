@@ -46,7 +46,7 @@ func NewFileWAL(dir string) (*FileWAL, error) {
 	ackPath := filepath.Join(dir, ackFileName)
 	ackFile, err := os.OpenFile(ackPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
-		walFile.Close()
+		_ = walFile.Close()
 		return nil, fmt.Errorf("wal: open ack file: %w", err)
 	}
 
@@ -58,14 +58,14 @@ func NewFileWAL(dir string) (*FileWAL, error) {
 	}
 
 	if err := fw.loadAcked(); err != nil {
-		walFile.Close()
-		ackFile.Close()
+		_ = walFile.Close()
+		_ = ackFile.Close()
 		return nil, fmt.Errorf("wal: load acked: %w", err)
 	}
 
 	if err := fw.loadMaxSeq(); err != nil {
-		walFile.Close()
-		ackFile.Close()
+		_ = walFile.Close()
+		_ = ackFile.Close()
 		return nil, fmt.Errorf("wal: load max seq: %w", err)
 	}
 
@@ -128,7 +128,9 @@ func (fw *FileWAL) Recover() ([]Entry, error) {
 		}
 		return nil, fmt.Errorf("wal: open for recovery: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	var entries []Entry
 	for {
@@ -215,7 +217,7 @@ func (fw *FileWAL) Checkpoint() error {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
-			f.Close()
+			_ = f.Close()
 			return fmt.Errorf("wal: checkpoint read header: %w", err)
 		}
 
@@ -234,7 +236,7 @@ func (fw *FileWAL) Checkpoint() error {
 			}{seqNum: seqNum, payload: payload})
 		}
 	}
-	f.Close()
+	_ = f.Close()
 
 	// Rewrite WAL with only unacknowledged entries
 	tmpPath := walPath + ".tmp"
@@ -248,26 +250,26 @@ func (fw *FileWAL) Checkpoint() error {
 		binary.BigEndian.PutUint64(header[0:8], entry.seqNum)
 		binary.BigEndian.PutUint32(header[8:12], uint32(len(entry.payload)))
 		if _, err := tmpFile.Write(header); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpPath)
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
 			return fmt.Errorf("wal: write tmp: %w", err)
 		}
 		if _, err := tmpFile.Write(entry.payload); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpPath)
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
 			return fmt.Errorf("wal: write tmp payload: %w", err)
 		}
 	}
 
 	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("wal: sync tmp: %w", err)
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Close current WAL file, rename tmp over it
-	fw.walFile.Close()
+	_ = fw.walFile.Close()
 	if err := os.Rename(tmpPath, walPath); err != nil {
 		return fmt.Errorf("wal: rename tmp: %w", err)
 	}
@@ -279,7 +281,7 @@ func (fw *FileWAL) Checkpoint() error {
 	}
 
 	// Reset ack file (only keep unacked entries which means no acks needed)
-	fw.ackFile.Close()
+	_ = fw.ackFile.Close()
 	ackPath := filepath.Join(fw.dir, ackFileName)
 	fw.ackFile, err = os.OpenFile(ackPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
 	if err != nil {
@@ -303,7 +305,9 @@ func (fw *FileWAL) loadAcked() error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	for {
 		var buf [8]byte
@@ -329,7 +333,9 @@ func (fw *FileWAL) loadMaxSeq() error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	for {
 		var header [12]byte

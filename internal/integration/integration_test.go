@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -159,7 +160,10 @@ func newPipeline(
 
 	cancel = func() {
 		cancelFn()
-		svc.Close()
+		err := svc.Close()
+		if err != nil {
+			slog.Error("failedToCloseService", "err", err)
+		}
 	}
 
 	return svc, cancel, wg
@@ -186,7 +190,12 @@ func TestIntegration_HTTP_Ingest_ReachesWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /ingest: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			return
+		}
+	}()
 
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d", resp.StatusCode)
@@ -239,7 +248,11 @@ func TestIntegration_gRPC_Ingest_ReachesWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grpc.NewClient: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("conn.Close: %v", err)
+		}
+	}()
 
 	client := pb.NewIngestorServiceClient(conn)
 
@@ -297,8 +310,12 @@ func TestIntegration_WAL_RecoverAfterCrash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen WAL: %v", err)
 	}
-	defer fw2.Close()
-
+	defer func() {
+		err := fw2.Close()
+		if err != nil {
+			return
+		}
+	}()
 	entries, err := fw2.Recover()
 	if err != nil {
 		t.Fatalf("Recover: %v", err)
@@ -349,7 +366,12 @@ func TestIntegration_WAL_AcksOnSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen WAL: %v", err)
 	}
-	defer fw.Close()
+	defer func() {
+		err := fw.Close()
+		if err != nil {
+			return
+		}
+	}()
 
 	entries, err := fw.Recover()
 	if err != nil {
@@ -441,7 +463,12 @@ func TestIntegration_GracefulShutdown_DrainAll(t *testing.T) {
 		}
 	}
 
-	svc.Close()
+	func() {
+		err := svc.Close()
+		if err != nil {
+			return
+		}
+	}()
 
 	done := make(chan struct{})
 	go func() {
@@ -546,6 +573,12 @@ func TestIntegration_gRPC_IngestDisabled(t *testing.T) {
 	if err := gs.Start(); err != nil {
 		t.Fatalf("GrpcServer.Start: %v", err)
 	}
+	func() {
+		err := svc.Close()
+		if err != nil {
+			return
+		}
+	}()
 	defer gs.Stop()
 
 	conn, err := grpc.NewClient(
@@ -555,7 +588,12 @@ func TestIntegration_gRPC_IngestDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("grpc.NewClient: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			return
+		}
+	}()
 
 	ctx, cancelRPC := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelRPC()
@@ -651,71 +689,84 @@ func TestIntegration_PermanentError_SkipsRetries(t *testing.T) {
 	}
 }
 
-
 func TestIntegration_DLQReplay_ReprocessesEvents(t *testing.T) {
-    const eventCount = 3
+	const eventCount = 3
 
-    fileDLQ, err := dlq.NewDLQ(config.DLQConfig{
-        Enabled: true,
-        Type:    "file",
-        File:    config.FileDLQConfig{Dir: t.TempDir()},
-    })
-    if err != nil {
-        t.Fatalf("create FileDLQ: %v", err)
-    }
-    defer fileDLQ.Close()
+	fileDLQ, err := dlq.NewDLQ(config.DLQConfig{
+		Enabled: true,
+		Type:    "file",
+		File:    config.FileDLQConfig{Dir: t.TempDir()},
+	})
+	if err != nil {
+		t.Fatalf("create FileDLQ: %v", err)
+	}
+	defer func() {
+		if err := fileDLQ.Close(); err != nil {
+			t.Errorf("fileDLQ.Close: %v", err)
+		}
+	}()
 
-    ctx := context.Background()
-    for i := 0; i < eventCount; i++ {
-        fileDLQ.Push(ctx,
-            &pb.IngestRequest{EventId: fmt.Sprintf("replay-intg-%d", i), Source: "dlq-test"},
-            "TestSink",
-            errors.New("sink was down"),
-        )
-    }
+	ctx := context.Background()
+	for i := 0; i < eventCount; i++ {
+		func() {
+			err := fileDLQ.Push(ctx,
+				&pb.IngestRequest{EventId: fmt.Sprintf("replay-intg-%d", i), Source: "dlq-test"},
+				"TestSink",
+				errors.New("sink was down"),
+			)
+			if err != nil {
+				return
+			}
+		}()
+	}
 
-    workingSink := sinks.NewMockSink()
-    svc, cancel, wg := newPipeline(t, defaultOpts(), workingSink, dlq.NewNoOpDLQ())
-    defer func() { cancel(); wg.Wait() }()
+	workingSink := sinks.NewMockSink()
+	svc, cancel, wg := newPipeline(t, defaultOpts(), workingSink, dlq.NewNoOpDLQ())
+	defer func() { cancel(); wg.Wait() }()
 
-    hs, err := server.NewHttpServer(0, svc, true)
-    if err != nil {
-        t.Fatalf("NewHttpServer: %v", err)
-    }
-    hs.SetDLQ(fileDLQ)
+	hs, err := server.NewHttpServer(0, svc, true)
+	if err != nil {
+		t.Fatalf("NewHttpServer: %v", err)
+	}
+	hs.SetDLQ(fileDLQ)
 
-    ts := httptest.NewServer(hs.Handler())
-    defer ts.Close()
+	ts := httptest.NewServer(hs.Handler())
+	defer ts.Close()
 
-    resp, err := http.Post(ts.URL+"/admin/dlq/replay", "application/json", nil)
-    if err != nil {
-        t.Fatalf("POST /admin/dlq/replay: %v", err)
-    }
-    defer resp.Body.Close()
+	resp, err := http.Post(ts.URL+"/admin/dlq/replay", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /admin/dlq/replay: %v", err)
+	}
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			return
+		}
+	}()
 
-    if resp.StatusCode != http.StatusOK {
-        t.Fatalf("expected 200, got %d", resp.StatusCode)
-    }
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
 
-    var result struct {
-        Replayed int `json:"replayed"`
-        Failed   int `json:"failed"`
-        Total    int `json:"total"`
-    }
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        t.Fatalf("decode replay response: %v", err)
-    }
-    if result.Replayed != eventCount {
-        t.Errorf("replay response: replayed=%d, want %d", result.Replayed, eventCount)
-    }
-    if result.Failed != 0 {
-        t.Errorf("replay response: failed=%d, want 0", result.Failed)
-    }
+	var result struct {
+		Replayed int `json:"replayed"`
+		Failed   int `json:"failed"`
+		Total    int `json:"total"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode replay response: %v", err)
+	}
+	if result.Replayed != eventCount {
+		t.Errorf("replay response: replayed=%d, want %d", result.Replayed, eventCount)
+	}
+	if result.Failed != 0 {
+		t.Errorf("replay response: failed=%d, want 0", result.Failed)
+	}
 
-    if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
-        return workingSink.TotalEvents() == eventCount
-    }) {
-        t.Fatalf("replayed events did not reach sink: got %d, want %d",
-            workingSink.TotalEvents(), eventCount)
-    }
+	if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
+		return workingSink.TotalEvents() == eventCount
+	}) {
+		t.Fatalf("replayed events did not reach sink: got %d, want %d",
+			workingSink.TotalEvents(), eventCount)
+	}
 }

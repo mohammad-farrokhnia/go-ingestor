@@ -151,7 +151,7 @@ func readDLQFile(path string) ([]DLQEntry, error) {
     if err != nil {
         return nil, err
     }
-    defer f.Close()
+    defer closeOsFile(f)
 
     const maxLine = 2 * 1024 * 1024
     scanner := bufio.NewScanner(f)
@@ -171,6 +171,13 @@ func readDLQFile(path string) ([]DLQEntry, error) {
         entries = append(entries, entry)
     }
     return entries, scanner.Err()
+}
+
+func closeOsFile(f *os.File){
+	err:= f.Close()
+	if err!=nil {
+		slog.Error("FailedToCloseTheFile error:", "err",err)
+	}
 }
 
 var _ Replayable = (*FileDLQ)(nil)

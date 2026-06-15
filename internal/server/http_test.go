@@ -160,7 +160,12 @@ func newTestFileDLQ(t *testing.T) dlq.DeadLetterQueue {
 	if err != nil {
 		t.Fatalf("create test FileDLQ: %v", err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() {
+		err := d.Close()
+		if err != nil {
+			return
+		}
+	})
 	return d
 }
 
@@ -189,10 +194,15 @@ func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		fileDLQ.Push(ctx, &pb.IngestRequest{
-			EventId: fmt.Sprintf("replay-%d", i),
-			Source:  "test",
-		}, "TestSink", errors.New("sink down"))
+		func() {
+			err := fileDLQ.Push(ctx, &pb.IngestRequest{
+				EventId: fmt.Sprintf("replay-%d", i),
+				Source:  "test",
+			}, "TestSink", errors.New("sink down"))
+			if err != nil {
+				return
+			}
+		}()
 	}
 
 	hs := newTestServer(t, true, 10)
@@ -205,7 +215,9 @@ func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	var resp dlqReplayResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("json.Decode: %v", err)
+	}
 
 	if resp.Replayed != 3 {
 		t.Errorf("expected replayed=3, got %d", resp.Replayed)
@@ -246,8 +258,12 @@ func TestHandleDLQStats(t *testing.T) {
 	fileDLQ := newTestFileDLQ(t)
 
 	ctx := context.Background()
-	fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-1", Source: "test"}, "Sink", errors.New("err"))
-	fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-2", Source: "test"}, "Sink", errors.New("err"))
+	if err := fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-1", Source: "test"}, "Sink", errors.New("err")); err != nil {
+		t.Fatalf("fileDLQ.Push s-1: %v", err)
+	}
+	if err := fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-2", Source: "test"}, "Sink", errors.New("err")); err != nil {
+		t.Fatalf("fileDLQ.Push s-2: %v", err)
+	}
 
 	hs := newTestServer(t, true, 10)
 	hs.SetDLQ(fileDLQ)
@@ -259,7 +275,9 @@ func TestHandleDLQStats(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	var stats dlq.DLQStats
-	json.NewDecoder(w.Body).Decode(&stats)
+	if err := json.NewDecoder(w.Body).Decode(&stats); err != nil {
+		t.Fatalf("json.Decode: %v", err)
+	}
 	if stats.TotalEntries != 2 {
 		t.Errorf("expected 2 entries, got %d", stats.TotalEntries)
 	}

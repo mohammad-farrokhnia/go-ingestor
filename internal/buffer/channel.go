@@ -1,11 +1,14 @@
 package buffer
 
 import (
+	"sync"
+
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
 type ChannelBuffer struct {
-	ch chan *pb.IngestRequest
+	ch      chan *pb.IngestRequest
+	closeOnce sync.Once
 }
 
 func NewChannelBuffer(size int) *ChannelBuffer {
@@ -26,7 +29,9 @@ func (b *ChannelBuffer) Chan() <-chan *pb.IngestRequest {
 }
 
 func (b *ChannelBuffer) Close() error {
-	close(b.ch)
+	b.closeOnce.Do(func() {
+		close(b.ch)
+	})
 	return nil
 }
 
