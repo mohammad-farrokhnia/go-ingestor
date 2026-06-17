@@ -48,12 +48,22 @@ func TestHandleIngest_Success(t *testing.T) {
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d body=%s", w.Code, w.Body.String())
 	}
-	var resp httpIngestResponse
+	var resp struct {
+		Data struct {
+			EventID string `json:"event_id"`
+		} `json:"data"`
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode resp: %v", err)
 	}
-	if resp.Status != "Accepted" {
-		t.Errorf("expected status Accepted, got %q", resp.Status)
+	if resp.Meta.MessageCode != "ACCEPTED" {
+		t.Errorf("expected messageCode ACCEPTED, got %q", resp.Meta.MessageCode)
+	}
+	if resp.Data.EventID != "e1" {
+		t.Errorf("expected data.event_id=e1, got %q", resp.Data.EventID)
 	}
 	if got := hs.ingestor.Buf().Len(); got != 1 {
 		t.Errorf("expected 1 event in buffer, got %d", got)
@@ -110,10 +120,16 @@ func TestHandleIngest_BufferFull(t *testing.T) {
 	if w2.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when buffer full, got %d", w2.Code)
 	}
-	var resp httpIngestResponse
-	_ = json.Unmarshal(w2.Body.Bytes(), &resp)
-	if resp.Status != "DROPPED" {
-		t.Errorf("expected DROPPED, got %q", resp.Status)
+	var resp struct {
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode resp: %v", err)
+	}
+	if resp.Meta.MessageCode != "DROPPED" {
+		t.Errorf("expected messageCode DROPPED, got %q", resp.Meta.MessageCode)
 	}
 }
 
@@ -180,7 +196,7 @@ func TestHandleDLQReplay_EmptyDLQ(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var resp dlqReplayResponse
+	var resp dlqReplayData
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -214,7 +230,7 @@ func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	var resp dlqReplayResponse
+	var resp dlqReplayData
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("json.Decode: %v", err)
 	}

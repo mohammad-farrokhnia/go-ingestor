@@ -19,11 +19,23 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/response"
 )
-
 var Version = "dev"
 
+const appName = "go-ingestor"
+
+// @title           go-ingestor API
+// @version         1.0
+// @description     HTTP administration and ingestion API for go-ingestor.
+// @contact.name    Mohammad Farrokhnia
+// @contact.url     https://github.com/mohammad-farrokhnia
+// @license.name    MIT
+// @license.url     https://opensource.org/licenses/MIT
+// @host            localhost:8080
+// @BasePath        /
 func main() {
+	response.Init(appName, Version)
 	cfg := loadConfig()
 
 	recorder := metrics.New()
