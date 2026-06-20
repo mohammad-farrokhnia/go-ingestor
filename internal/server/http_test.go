@@ -196,12 +196,14 @@ func TestHandleDLQReplay_EmptyDLQ(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var resp dlqReplayData
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	var env struct {
+		Data dlqReplayData `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Total != 0 {
-		t.Errorf("expected total=0, got %d", resp.Total)
+	if env.Data.Total != 0 {
+		t.Errorf("expected total=0, got %d", env.Data.Total)
 	}
 }
 
@@ -230,19 +232,21 @@ func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	var resp dlqReplayData
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+	var env struct {
+		Data dlqReplayData `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
 		t.Fatalf("json.Decode: %v", err)
 	}
 
-	if resp.Replayed != 3 {
-		t.Errorf("expected replayed=3, got %d", resp.Replayed)
+	if env.Data.Replayed != 3 {
+		t.Errorf("expected replayed=3, got %d", env.Data.Replayed)
 	}
-	if resp.Failed != 0 {
-		t.Errorf("expected failed=0, got %d", resp.Failed)
+	if env.Data.Failed != 0 {
+		t.Errorf("expected failed=0, got %d", env.Data.Failed)
 	}
-	if resp.Total != 3 {
-		t.Errorf("expected total=3, got %d", resp.Total)
+	if env.Data.Total != 3 {
+		t.Errorf("expected total=3, got %d", env.Data.Total)
 	}
 }
 
@@ -290,11 +294,13 @@ func TestHandleDLQStats(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	var stats dlq.DLQStats
-	if err := json.NewDecoder(w.Body).Decode(&stats); err != nil {
+	var env struct {
+		Data dlq.DLQStats `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
 		t.Fatalf("json.Decode: %v", err)
 	}
-	if stats.TotalEntries != 2 {
-		t.Errorf("expected 2 entries, got %d", stats.TotalEntries)
+	if env.Data.TotalEntries != 2 {
+		t.Errorf("expected 2 entries, got %d", env.Data.TotalEntries)
 	}
 }

@@ -8,7 +8,7 @@ var faMessages = map[MessageCode]string{
 	MsgInvalidJSON:      "ساختار JSON درخواست نامعتبر است.",
 	MsgMissingEventID:   "فیلد 'event_id' الزامی است.",
 	MsgMethodNotAllowed: "این متد مجاز نیست.",
-	MsgNotConfigured:    "سرویس دریافت‌کننده پیکربندی نشده است.",
+	MsgNotConfigured:    "سرویس دریافت\u200cکننده پیکربندی نشده است.",
 
 	// Health.
 	MsgHealthOK: "سرویس سالم است.",
@@ -22,8 +22,8 @@ var faMessages = map[MessageCode]string{
 	MsgDLQReplayFailed:     "بازپخش DLQ ناموفق بود.",
 	MsgDLQStatsOK:          "آمار DLQ با موفقیت دریافت شد.",
 	MsgDLQStatsFailed:      "دریافت آمار DLQ ناموفق بود.",
-	MsgDLQNotReplayable:    "بک‌اند DLQ پیکربندی‌شده از بازپخش پشتیبانی نمی‌کند.",
-	MsgDLQStatsUnsupported: "بک‌اند DLQ پیکربندی‌شده از آمار پشتیبانی نمی‌کند.",
+	MsgDLQNotReplayable:    "بک\u200cاند DLQ پیکربندی\u200cشده از بازپخش پشتیبانی نمی\u200cکند.",
+	MsgDLQStatsUnsupported: "بک\u200cاند DLQ پیکربندی\u200cشده از آمار پشتیبانی نمی\u200cکند.",
 
 	// Generic.
 	MsgInternalError: "خطای داخلی سرور.",

@@ -202,13 +202,15 @@ func TestIntegration_HTTP_Ingest_ReachesWorker(t *testing.T) {
 	}
 
 	var result struct {
-		Status string `json:"status"`
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if result.Status != "Accepted" {
-		t.Errorf("expected status Accepted, got %q", result.Status)
+	if result.Meta.MessageCode != "ACCEPTED" {
+		t.Errorf("expected messageCode ACCEPTED, got %q", result.Meta.MessageCode)
 	}
 
 	if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
@@ -748,19 +750,21 @@ func TestIntegration_DLQReplay_ReprocessesEvents(t *testing.T) {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var result struct {
-		Replayed int `json:"replayed"`
-		Failed   int `json:"failed"`
-		Total    int `json:"total"`
+	var env struct {
+		Data struct {
+			Replayed int `json:"replayed"`
+			Failed   int `json:"failed"`
+			Total    int `json:"total"`
+		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		t.Fatalf("decode replay response: %v", err)
 	}
-	if result.Replayed != eventCount {
-		t.Errorf("replay response: replayed=%d, want %d", result.Replayed, eventCount)
+	if env.Data.Replayed != eventCount {
+		t.Errorf("replay response: replayed=%d, want %d", env.Data.Replayed, eventCount)
 	}
-	if result.Failed != 0 {
-		t.Errorf("replay response: failed=%d, want 0", result.Failed)
+	if env.Data.Failed != 0 {
+		t.Errorf("replay response: failed=%d, want 0", env.Data.Failed)
 	}
 
 	if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
