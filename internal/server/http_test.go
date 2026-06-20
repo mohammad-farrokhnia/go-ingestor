@@ -2,15 +2,21 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
+	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
 func newTestServer(t *testing.T, ingestEnabled bool, bufferSize int) *HttpServer {
@@ -42,12 +48,22 @@ func TestHandleIngest_Success(t *testing.T) {
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("expected 202, got %d body=%s", w.Code, w.Body.String())
 	}
-	var resp httpIngestResponse
+	var resp struct {
+		Data struct {
+			EventID string `json:"event_id"`
+		} `json:"data"`
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode resp: %v", err)
 	}
-	if resp.Status != "Accepted" {
-		t.Errorf("expected status Accepted, got %q", resp.Status)
+	if resp.Meta.MessageCode != "ACCEPTED" {
+		t.Errorf("expected messageCode ACCEPTED, got %q", resp.Meta.MessageCode)
+	}
+	if resp.Data.EventID != "e1" {
+		t.Errorf("expected data.event_id=e1, got %q", resp.Data.EventID)
 	}
 	if got := hs.ingestor.Buf().Len(); got != 1 {
 		t.Errorf("expected 1 event in buffer, got %d", got)
@@ -104,10 +120,16 @@ func TestHandleIngest_BufferFull(t *testing.T) {
 	if w2.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when buffer full, got %d", w2.Code)
 	}
-	var resp httpIngestResponse
-	_ = json.Unmarshal(w2.Body.Bytes(), &resp)
-	if resp.Status != "DROPPED" {
-		t.Errorf("expected DROPPED, got %q", resp.Status)
+	var resp struct {
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w2.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode resp: %v", err)
+	}
+	if resp.Meta.MessageCode != "DROPPED" {
+		t.Errorf("expected messageCode DROPPED, got %q", resp.Meta.MessageCode)
 	}
 }
 
@@ -141,5 +163,144 @@ func TestHandleHealthAndReady(t *testing.T) {
 	hs.handleReady(wReady, httptest.NewRequest(http.MethodGet, "/ready", nil))
 	if wReady.Code != http.StatusOK {
 		t.Errorf("expected 200 from /ready when ready, got %d", wReady.Code)
+	}
+}
+
+func newTestFileDLQ(t *testing.T) dlq.DeadLetterQueue {
+	t.Helper()
+	d, err := dlq.NewDLQ(config.DLQConfig{
+		Enabled: true,
+		Type:    "file",
+		File:    config.FileDLQConfig{Dir: t.TempDir()},
+	})
+	if err != nil {
+		t.Fatalf("create test FileDLQ: %v", err)
+	}
+	t.Cleanup(func() {
+		err := d.Close()
+		if err != nil {
+			return
+		}
+	})
+	return d
+}
+
+func TestHandleDLQReplay_EmptyDLQ(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	hs.handleDLQReplay(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var env struct {
+		Data dlqReplayData `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Data.Total != 0 {
+		t.Errorf("expected total=0, got %d", env.Data.Total)
+	}
+}
+
+func TestHandleDLQReplay_RequeuesEntries(t *testing.T) {
+	fileDLQ := newTestFileDLQ(t)
+
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		func() {
+			err := fileDLQ.Push(ctx, &pb.IngestRequest{
+				EventId: fmt.Sprintf("replay-%d", i),
+				Source:  "test",
+			}, "TestSink", errors.New("sink down"))
+			if err != nil {
+				return
+			}
+		}()
+	}
+
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(fileDLQ)
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var env struct {
+		Data dlqReplayData `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
+		t.Fatalf("json.Decode: %v", err)
+	}
+
+	if env.Data.Replayed != 3 {
+		t.Errorf("expected replayed=3, got %d", env.Data.Replayed)
+	}
+	if env.Data.Failed != 0 {
+		t.Errorf("expected failed=0, got %d", env.Data.Failed)
+	}
+	if env.Data.Total != 3 {
+		t.Errorf("expected total=3, got %d", env.Data.Total)
+	}
+}
+
+func TestHandleDLQReplay_WrongMethod(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodGet, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleDLQReplay_NonReplayableDLQ_Returns501(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(dlq.NewNoOpDLQ()) // NoOpDLQ does not implement Replayable
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+
+	if w.Code != http.StatusNotImplemented {
+		t.Errorf("expected 501, got %d", w.Code)
+	}
+}
+
+func TestHandleDLQStats(t *testing.T) {
+	fileDLQ := newTestFileDLQ(t)
+
+	ctx := context.Background()
+	if err := fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-1", Source: "test"}, "Sink", errors.New("err")); err != nil {
+		t.Fatalf("fileDLQ.Push s-1: %v", err)
+	}
+	if err := fileDLQ.Push(ctx, &pb.IngestRequest{EventId: "s-2", Source: "test"}, "Sink", errors.New("err")); err != nil {
+		t.Fatalf("fileDLQ.Push s-2: %v", err)
+	}
+
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(fileDLQ)
+
+	w := httptest.NewRecorder()
+	hs.handleDLQStats(w, httptest.NewRequest(http.MethodGet, "/admin/dlq/stats", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var env struct {
+		Data dlq.DLQStats `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&env); err != nil {
+		t.Fatalf("json.Decode: %v", err)
+	}
+	if env.Data.TotalEntries != 2 {
+		t.Errorf("expected 2 entries, got %d", env.Data.TotalEntries)
 	}
 }

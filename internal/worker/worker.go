@@ -16,7 +16,6 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-const maxAttempts = 3
 const maxRetries = 3
 
 var (

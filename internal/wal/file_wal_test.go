@@ -37,13 +37,13 @@ func TestFileWAL_AppendAndRecover(t *testing.T) {
 		}
 	}
 
-	w.Close()
+	closeFileWalTest(w)
 
 	w2, err := NewFileWAL(dir)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	defer w2.Close()
+	defer closeFileWalTest(w2)
 
 	entries, err := w2.Recover()
 	if err != nil {
@@ -77,13 +77,17 @@ func TestFileWAL_Acknowledge(t *testing.T) {
 		t.Fatalf("Acknowledge seq3: %v", err)
 	}
 
-	w.Close()
+	closeFileWalTest(w)
 
 	w2, err := NewFileWAL(dir)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
-	defer w2.Close()
+	defer func() {
+		if err := w2.Close(); err != nil {
+			t.Errorf("w2.Close: %v", err)
+		}
+	}()
 
 	entries, err := w2.Recover()
 	if err != nil {
@@ -106,17 +110,23 @@ func TestFileWAL_SeqContinuity(t *testing.T) {
 
 	seq1, _ := w.Append(&pb.IngestRequest{EventId: "1"})
 	seq2, _ := w.Append(&pb.IngestRequest{EventId: "2"})
-	w.Close()
-
+	closeFileWalTest(w)
 	w2, err := NewFileWAL(dir)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
 	seq3, _ := w2.Append(&pb.IngestRequest{EventId: "3"})
-	w2.Close()
+	closeFileWalTest(w2)
 
 	if seq1 != 1 || seq2 != 2 || seq3 != 3 {
 		t.Errorf("expected seqs 1,2,3 got %d,%d,%d", seq1, seq2, seq3)
+	}
+}
+
+func closeFileWalTest(w *FileWAL) {
+	err := w.Close()
+	if err != nil {
+		return
 	}
 }
 
@@ -153,7 +163,6 @@ func TestFileWAL_Checkpoint(t *testing.T) {
 		t.Errorf("expected evt-2, got %s", entries[0].Event.EventId)
 	}
 
-	// Verify WAL file size reduced
 	info, err := os.Stat(filepath.Join(dir, walFileName))
 	if err != nil {
 		t.Fatalf("stat wal: %v", err)
@@ -162,7 +171,7 @@ func TestFileWAL_Checkpoint(t *testing.T) {
 		t.Error("WAL file should not be empty (1 entry remains)")
 	}
 
-	w.Close()
+	closeFileWalTest(w)
 }
 
 func TestFileWAL_EmptyRecover(t *testing.T) {
@@ -171,7 +180,7 @@ func TestFileWAL_EmptyRecover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileWAL: %v", err)
 	}
-	defer w.Close()
+	defer closeFileWalTest(w)
 
 	entries, err := w.Recover()
 	if err != nil {

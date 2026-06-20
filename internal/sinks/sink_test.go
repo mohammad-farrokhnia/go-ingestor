@@ -68,7 +68,9 @@ func TestBuildSink_Kafka_Valid(t *testing.T) {
 	if sink.Name() != "KafkaSink" {
 		t.Errorf("expected KafkaSink, got %s", sink.Name())
 	}
-	sink.Close()
+	if err := sink.Close(); err != nil {
+		t.Errorf("sink.Close: %v", err)
+	}
 }
 
 func TestBuildSink_HTTP_MissingURL(t *testing.T) {
