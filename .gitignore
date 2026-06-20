@@ -38,5 +38,5 @@ data/
 .vscode/
 
 # Local notes
-info/
 graphify-out/
+notes/
