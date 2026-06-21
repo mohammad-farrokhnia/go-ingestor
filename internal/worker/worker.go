@@ -19,8 +19,8 @@ import (
 const maxRetries = 3
 
 var (
-    maxRestarts     = 5
-    restartCooldown = 1 * time.Second
+	maxRestarts     = 5
+	restartCooldown = 1 * time.Second
 )
 
 func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) *sync.WaitGroup {
@@ -45,55 +45,55 @@ func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest,
 
 func runWorkerWithRestart(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) {
 	for attempt := 0; attempt < maxRestarts; attempt++ {
-        clean := runWorkerGuarded(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq, w, tracker)
-        if clean {
-            return
-        }
+		clean := runWorkerGuarded(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq, w, tracker)
+		if clean {
+			return
+		}
 
-        if recorder != nil {
-            recorder.IncWorkerPanics()
-        }
+		if recorder != nil {
+			recorder.IncWorkerPanics()
+		}
 
-        remaining := maxRestarts - attempt - 1
-        if remaining == 0 {
-            slog.Error("Worker stopped permanently: exceeded max restarts",
-                "worker", id,
-                "max_restarts", maxRestarts,
-            )
-            return
-        }
+		remaining := maxRestarts - attempt - 1
+		if remaining == 0 {
+			slog.Error("Worker stopped permanently: exceeded max restarts",
+				"worker", id,
+				"max_restarts", maxRestarts,
+			)
+			return
+		}
 
-        slog.Warn("Worker will restart after panic cooldown",
-            "worker", id,
-            "attempt", attempt+1,
-            "max_restarts", maxRestarts,
-            "remaining_restarts", remaining,
-            "cooldown", restartCooldown,
-        )
+		slog.Warn("Worker will restart after panic cooldown",
+			"worker", id,
+			"attempt", attempt+1,
+			"max_restarts", maxRestarts,
+			"remaining_restarts", remaining,
+			"cooldown", restartCooldown,
+		)
 
 		select {
-        case <-ctx.Done():
-            return
-        case <-time.After(restartCooldown):
-        }
+		case <-ctx.Done():
+			return
+		case <-time.After(restartCooldown):
+		}
 
-        slog.Info("Restarting worker", "worker", id, "attempt", attempt+1)
-    }
+		slog.Info("Restarting worker", "worker", id, "attempt", attempt+1)
+	}
 }
 
 func runWorkerGuarded(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, d dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) (exited bool) {
-    defer func() {
-        if r := recover(); r != nil {
-            slog.Error("Worker panic recovered",
-                "worker", id,
-                "panic", r,
-                "stack", string(debug.Stack()),
-            )
-        }
-    }()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Worker panic recovered",
+				"worker", id,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
 
-    runWorker(ctx, id, buffer, batchSize, timeout, sinkList, recorder, d, w, tracker)
-    return true // only reached on clean exit
+	runWorker(ctx, id, buffer, batchSize, timeout, sinkList, recorder, d, w, tracker)
+	return true // only reached on clean exit
 }
 
 func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) {

@@ -7,7 +7,7 @@ import (
 )
 
 type ChannelBuffer struct {
-	ch      chan *pb.IngestRequest
+	ch        chan *pb.IngestRequest
 	closeOnce sync.Once
 }
 

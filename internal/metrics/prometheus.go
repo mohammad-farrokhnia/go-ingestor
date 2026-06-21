@@ -74,5 +74,5 @@ func (r *prometheusRecorder) SetBufferSize(size int) {
 }
 
 func (r *prometheusRecorder) IncWorkerPanics() {
-    r.workerPanicsTotal.Inc()
+	r.workerPanicsTotal.Inc()
 }

@@ -14,11 +14,12 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
+
 type controlledSink struct {
-    mu         sync.Mutex
-    callCount  int
-    panicUntil int
-    received   [][]*pb.IngestRequest
+	mu         sync.Mutex
+	callCount  int
+	panicUntil int
+	received   [][]*pb.IngestRequest
 }
 
 func TestFlush_EmptyBatch(t *testing.T) {
@@ -258,124 +259,121 @@ func TestWriteWithRetry_TransientError_RetriesMaxTimes(t *testing.T) {
 	}
 }
 
-
-
 func (s *controlledSink) Write(_ context.Context, batch []*pb.IngestRequest) error {
-    s.mu.Lock()
-    defer s.mu.Unlock()
-    s.callCount++
-    if s.callCount <= s.panicUntil {
-        panic(fmt.Sprintf("controlled panic #%d", s.callCount))
-    }
-    cp := make([]*pb.IngestRequest, len(batch))
-    copy(cp, batch)
-    s.received = append(s.received, cp)
-    return nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callCount++
+	if s.callCount <= s.panicUntil {
+		panic(fmt.Sprintf("controlled panic #%d", s.callCount))
+	}
+	cp := make([]*pb.IngestRequest, len(batch))
+	copy(cp, batch)
+	s.received = append(s.received, cp)
+	return nil
 }
 
 func (s *controlledSink) TotalEvents() int {
-    s.mu.Lock()
-    defer s.mu.Unlock()
-    n := 0
-    for _, b := range s.received {
-        n += len(b)
-    }
-    return n
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, b := range s.received {
+		n += len(b)
+	}
+	return n
 }
 
-func (s *controlledSink) Name() string  { return "ControlledSink" }
-func (s *controlledSink) Close() error  { return nil }
-
+func (s *controlledSink) Name() string { return "ControlledSink" }
+func (s *controlledSink) Close() error { return nil }
 
 func TestWorker_PanicRecovery_WorkerRestarts(t *testing.T) {
-    origCooldown := restartCooldown
-    restartCooldown = 20 * time.Millisecond
-    defer func() { restartCooldown = origCooldown }()
+	origCooldown := restartCooldown
+	restartCooldown = 20 * time.Millisecond
+	defer func() { restartCooldown = origCooldown }()
 
-    sink := &controlledSink{panicUntil: 1}
-    recorder := metrics.NewMock()
-    buf := make(chan *pb.IngestRequest, 50)
+	sink := &controlledSink{panicUntil: 1}
+	recorder := metrics.NewMock()
+	buf := make(chan *pb.IngestRequest, 50)
 
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-    var wg sync.WaitGroup
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        runWorkerWithRestart(ctx, 0, buf, 5, 50*time.Millisecond, []sinks.Sink{sink}, recorder, dlq.NewNoOpDLQ(), nil, nil)
-    }()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runWorkerWithRestart(ctx, 0, buf, 5, 50*time.Millisecond, []sinks.Sink{sink}, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	}()
 
-    buf <- &pb.IngestRequest{EventId: "wave1-a"}
+	buf <- &pb.IngestRequest{EventId: "wave1-a"}
 
-    time.Sleep(150 * time.Millisecond)
-    buf <- &pb.IngestRequest{EventId: "wave2-a"}
-    buf <- &pb.IngestRequest{EventId: "wave2-b"}
+	time.Sleep(150 * time.Millisecond)
+	buf <- &pb.IngestRequest{EventId: "wave2-a"}
+	buf <- &pb.IngestRequest{EventId: "wave2-b"}
 
-    deadline := time.Now().Add(2 * time.Second)
-    for time.Now().Before(deadline) {
-        if sink.TotalEvents() >= 2 {
-            break
-        }
-        time.Sleep(20 * time.Millisecond)
-    }
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if sink.TotalEvents() >= 2 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
-    cancel()
-    wg.Wait()
+	cancel()
+	wg.Wait()
 
-    if sink.TotalEvents() < 2 {
-        t.Errorf("expected at least 2 events after restart, got %d", sink.TotalEvents())
-    }
-    if recorder.GetWorkerPanicCount() < 1 {
-        t.Errorf("expected at least 1 panic recorded, got %d", recorder.GetWorkerPanicCount())
-    }
+	if sink.TotalEvents() < 2 {
+		t.Errorf("expected at least 2 events after restart, got %d", sink.TotalEvents())
+	}
+	if recorder.GetWorkerPanicCount() < 1 {
+		t.Errorf("expected at least 1 panic recorded, got %d", recorder.GetWorkerPanicCount())
+	}
 }
 
 func TestWorker_PanicRecovery_ExceedsMaxRestarts_Stops(t *testing.T) {
-    origMax := maxRestarts
-    origCooldown := restartCooldown
-    maxRestarts = 2
-    restartCooldown = 10 * time.Millisecond
-    defer func() {
-        maxRestarts = origMax
-        restartCooldown = origCooldown
-    }()
+	origMax := maxRestarts
+	origCooldown := restartCooldown
+	maxRestarts = 2
+	restartCooldown = 10 * time.Millisecond
+	defer func() {
+		maxRestarts = origMax
+		restartCooldown = origCooldown
+	}()
 
-    alwaysPanic := &controlledSink{panicUntil: 1000}
-    recorder := metrics.NewMock()
-    buf := make(chan *pb.IngestRequest, 20)
+	alwaysPanic := &controlledSink{panicUntil: 1000}
+	recorder := metrics.NewMock()
+	buf := make(chan *pb.IngestRequest, 20)
 
-    ctx := context.Background()
-    done := make(chan struct{})
+	ctx := context.Background()
+	done := make(chan struct{})
 
-    go func() {
-        i := 0
-        for {
-            select {
-            case buf <- &pb.IngestRequest{EventId: fmt.Sprintf("trigger-%d", i)}:
-                i++
-            case <-done:
-                return
-            }
-        }
-    }()
+	go func() {
+		i := 0
+		for {
+			select {
+			case buf <- &pb.IngestRequest{EventId: fmt.Sprintf("trigger-%d", i)}:
+				i++
+			case <-done:
+				return
+			}
+		}
+	}()
 
-    go func() {
-        runWorkerWithRestart(
-            ctx, 0, buf, 1, 10*time.Millisecond,
-            []sinks.Sink{alwaysPanic}, recorder,
-            dlq.NewNoOpDLQ(), nil, nil,
-        )
-        close(done)
-    }()
+	go func() {
+		runWorkerWithRestart(
+			ctx, 0, buf, 1, 10*time.Millisecond,
+			[]sinks.Sink{alwaysPanic}, recorder,
+			dlq.NewNoOpDLQ(), nil, nil,
+		)
+		close(done)
+	}()
 
-    select {
-    case <-done:
-    case <-time.After(5 * time.Second):
-        t.Fatal("worker did not stop after exhausting max restarts")
-    }
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker did not stop after exhausting max restarts")
+	}
 
-    if got := recorder.GetWorkerPanicCount(); int(got) != maxRestarts {
-        t.Errorf("expected %d panics recorded, got %d", maxRestarts, got)
-    }
+	if got := recorder.GetWorkerPanicCount(); int(got) != maxRestarts {
+		t.Errorf("expected %d panics recorded, got %d", maxRestarts, got)
+	}
 }
