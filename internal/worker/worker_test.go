@@ -12,6 +12,7 @@ import (
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
@@ -27,7 +28,7 @@ func TestFlush_EmptyBatch(t *testing.T) {
 	recorder := metrics.NewMock()
 	sinkList := []sinks.Sink{mockSink}
 
-	flush(0, []*pb.IngestRequest{}, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	flush(0, []*pb.IngestRequest{}, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	if mockSink.BatchCount() != 1 {
 		t.Errorf("expected 1 batch (even if empty), got %d", mockSink.BatchCount())
@@ -46,7 +47,7 @@ func TestFlush_SingleEvent(t *testing.T) {
 		{EventId: "event-1", Source: "test"},
 	}
 
-	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	if mockSink.TotalEvents() != 1 {
 		t.Errorf("expected 1 event, got %d", mockSink.TotalEvents())
@@ -67,7 +68,7 @@ func TestFlush_MultipleSinks(t *testing.T) {
 		{EventId: "event-2"},
 	}
 
-	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	if mockSink1.TotalEvents() != 2 {
 		t.Errorf("sink1: expected 2 events, got %d", mockSink1.TotalEvents())
@@ -88,7 +89,7 @@ func TestFlush_NilRecorder(t *testing.T) {
 		{EventId: "event-1"},
 	}
 
-	flush(0, batch, sinkList, nil, dlq.NewNoOpDLQ(), nil, nil)
+	flush(0, batch, sinkList, nil, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	if mockSink.TotalEvents() != 1 {
 		t.Errorf("expected 1 event, got %d", mockSink.TotalEvents())
@@ -105,7 +106,7 @@ func TestFlush_SinkError(t *testing.T) {
 		{EventId: "event-1"},
 	}
 
-	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	flush(0, batch, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	if recorder.GetBatchFlushCount() != 1 {
 		t.Errorf("expected 1 flush recorded, got %d", recorder.GetBatchFlushCount())
@@ -129,7 +130,7 @@ func TestWorker_BatchSizeFlush(t *testing.T) {
 	sinkList := []sinks.Sink{mockSink}
 
 	ctx := context.Background()
-	go runWorker(ctx, 0, buffer, 3, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	go runWorker(ctx, 0, buffer, 3, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	buffer <- &pb.IngestRequest{EventId: "1"}
 	buffer <- &pb.IngestRequest{EventId: "2"}
@@ -152,7 +153,7 @@ func TestWorker_TimeoutFlush(t *testing.T) {
 	sinkList := []sinks.Sink{mockSink}
 
 	ctx := context.Background()
-	go runWorker(ctx, 0, buffer, 100, 50*time.Millisecond, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	go runWorker(ctx, 0, buffer, 100, 50*time.Millisecond, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	buffer <- &pb.IngestRequest{EventId: "1"}
 	buffer <- &pb.IngestRequest{EventId: "2"}
@@ -176,7 +177,7 @@ func TestStart_DrainsBufferOnClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	wg := Start(ctx, 3, buffer, 1000, "10s", sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	wg := Start(ctx, 3, buffer, 1000, "10s", sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	const total = 50
 	for i := 0; i < total; i++ {
@@ -209,7 +210,7 @@ func TestWorker_MultipleBatches(t *testing.T) {
 	sinkList := []sinks.Sink{mockSink}
 
 	ctx := context.Background()
-	go runWorker(ctx, 0, buffer, 2, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ(), nil, nil)
+	go runWorker(ctx, 0, buffer, 2, 10*time.Second, sinkList, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 
 	for i := 0; i < 5; i++ {
 		buffer <- &pb.IngestRequest{EventId: "event"}
@@ -301,7 +302,7 @@ func TestWorker_PanicRecovery_WorkerRestarts(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runWorkerWithRestart(ctx, 0, buf, 5, 50*time.Millisecond, []sinks.Sink{sink}, recorder, dlq.NewNoOpDLQ(), nil, nil)
+		runWorkerWithRestart(ctx, 0, buf, 5, 50*time.Millisecond, []sinks.Sink{sink}, recorder, dlq.NewNoOpDLQ(), wal.NewNoOpWAL(), wal.NewSeqTracker())
 	}()
 
 	buf <- &pb.IngestRequest{EventId: "wave1-a"}

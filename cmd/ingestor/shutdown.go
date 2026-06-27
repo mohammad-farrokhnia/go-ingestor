@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"log/slog"
-
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
 )
 
 func (a *application) shutdown(ctx context.Context, forceStop context.CancelFunc) {
@@ -48,16 +46,9 @@ func (a *application) shutdown(ctx context.Context, forceStop context.CancelFunc
 		slog.Error("Error closing DLQ", "dlq", a.dlq.Name(), "err", err)
 	}
 
-	closeWAL(a.wal)
-
-	slog.Info("Shutdown complete")
-}
-
-func closeWAL(w wal.WAL) {
-	if w == nil {
-		return
-	}
-	if err := w.Close(); err != nil {
+	if err := a.wal.Close(); err != nil {
 		slog.Error("Error closing WAL", "err", err)
 	}
+
+	slog.Info("Shutdown complete")
 }

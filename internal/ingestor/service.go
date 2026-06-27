@@ -17,6 +17,9 @@ type Service struct {
 }
 
 func NewService(buf buffer.Buffer, recorder metrics.Recorder, w wal.WAL) *Service {
+	if w == nil {
+		w = wal.NewNoOpWAL()
+	}
 	return &Service{
 		buf:      buf,
 		recorder: recorder,
@@ -46,19 +49,18 @@ func (s *Service) Push(req *pb.IngestRequest) error {
 		s.recorder.IncEventsReceived()
 	}
 
-	if s.wal != nil {
-		seqNum, err := s.wal.Append(req)
-		if err != nil {
-			slog.Error("WAL append failed", "err", err)
-			if s.recorder != nil {
-				s.recorder.IncEventsDropped()
-			}
-			return err
+	seqNum, err := s.wal.Append(req)
+	if err != nil {
+		slog.Error("WAL append failed", "err", err)
+		if s.recorder != nil {
+			s.recorder.IncEventsDropped()
 		}
-		s.tracker.Store(req.EventId, seqNum)
+		return err
 	}
+	s.tracker.Store(req.EventId, seqNum)
 
 	if err := s.buf.Push(req); err != nil {
+		s.tracker.LoadAndDelete(req.EventId)
 		if s.recorder != nil {
 			s.recorder.IncEventsDropped()
 		}

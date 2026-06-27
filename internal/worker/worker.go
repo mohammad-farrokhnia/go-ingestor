@@ -30,6 +30,13 @@ func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest,
 		os.Exit(1)
 	}
 
+	if w == nil {
+		w = wal.NewNoOpWAL()
+	}
+	if tracker == nil {
+		tracker = wal.NewSeqTracker()
+	}
+
 	slog.Info("Starting workers", "count", numWorkers, "batch_size", batchSize, "timeout", timeout)
 
 	var wg sync.WaitGroup
@@ -159,7 +166,7 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 		}
 	}
 
-	if allSucceeded && w != nil && tracker != nil {
+	if allSucceeded {
 		for _, event := range batch {
 			if seqNum, ok := tracker.LoadAndDelete(event.EventId); ok {
 				if err := w.Acknowledge(seqNum); err != nil {

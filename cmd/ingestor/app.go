@@ -128,7 +128,7 @@ func initIngestorService(cfg *config.Config, recorder metrics.Recorder, w wal.WA
 
 func initWAL(cfg *config.Config) (wal.WAL, error) {
 	if !cfg.WAL.Enabled {
-		return nil, nil
+		return wal.NewNoOpWAL(), nil
 	}
 	fileWAL, err := wal.NewFileWAL(cfg.WAL.Dir)
 	if err != nil {
@@ -139,10 +139,6 @@ func initWAL(cfg *config.Config) (wal.WAL, error) {
 }
 
 func replayWAL(w wal.WAL, core *ingestor.Service) {
-	if w == nil {
-		return
-	}
-
 	entries, err := w.Recover()
 	if err != nil {
 		slog.Error("WAL recovery failed", "err", err)
