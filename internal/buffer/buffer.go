@@ -19,11 +19,11 @@ type Buffer interface {
 
 func New(cfg config.BufferConfig, size int) (Buffer, error) {
 	switch cfg.Type {
-	case "", "channel":
+	case "", config.ChannelBuffer:
 		return NewChannelBuffer(size), nil
-	case "redis":
+	case config.RedisBuffer:
 		return NewRedisBuffer(cfg.Redis, size)
-	case "hybrid":
+	case config.HybridBuffer:
 		return NewHybridBuffer(cfg.Hybrid, size)
 	default:
 		return nil, fmt.Errorf("unknown buffer type: %s", cfg.Type)

@@ -283,7 +283,7 @@ func TestNewDLQ_Disabled_ReturnsNoOp(t *testing.T) {
 func TestNewDLQ_FileType_ValidDir(t *testing.T) {
 	d, err := NewDLQ(config.DLQConfig{
 		Enabled: true,
-		Type:    string(config.DLQTypeFile),
+		Type:    config.DLQTypeFile,
 		File:    config.FileDLQConfig{Dir: t.TempDir()},
 	})
 	if err != nil {
@@ -300,7 +300,7 @@ func TestNewDLQ_FileType_MissingDir_ReturnsError(t *testing.T) {
 	// but to be precise we use a known-unwritable path.
 	_, err := NewDLQ(config.DLQConfig{
 		Enabled: true,
-		Type:    string(config.DLQTypeFile),
+		Type:    config.DLQTypeFile,
 		File:    config.FileDLQConfig{Dir: "/proc/nonexistent-dlq-test-dir"},
 	})
 	if err == nil {
@@ -311,7 +311,7 @@ func TestNewDLQ_FileType_MissingDir_ReturnsError(t *testing.T) {
 func TestNewDLQ_KafkaType_ValidConfig(t *testing.T) {
 	d, err := NewDLQ(config.DLQConfig{
 		Enabled: true,
-		Type:    string(config.DLQTypeKafka),
+		Type:    config.DLQTypeKafka,
 		Kafka:   config.KafkaDLQConfig{Brokers: []string{"localhost:9092"}, Topic: "dlq"},
 	})
 	if err != nil {
@@ -326,7 +326,7 @@ func TestNewDLQ_KafkaType_ValidConfig(t *testing.T) {
 func TestNewDLQ_KafkaType_MissingBrokers(t *testing.T) {
 	_, err := NewDLQ(config.DLQConfig{
 		Enabled: true,
-		Type:    string(config.DLQTypeKafka),
+		Type:    config.DLQTypeKafka,
 		Kafka:   config.KafkaDLQConfig{Topic: "dlq"},
 	})
 	if err == nil {

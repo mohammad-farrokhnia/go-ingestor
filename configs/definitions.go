@@ -1,51 +1,30 @@
 package config
 
-type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Ingestor IngestorConfig `mapstructure:"ingestor"`
-	Buffer   BufferConfig   `mapstructure:"buffer"`
-	Worker   WorkerConfig   `mapstructure:"worker"`
-	Sinks    SinksConfig    `mapstructure:"sinks"`
-	DLQ      DLQConfig      `mapstructure:"dlq"`
-	WAL      WALConfig      `mapstructure:"wal"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
-	Shutdown ShutdownConfig `mapstructure:"shutdown"`
-}
+type (
+	BufferType string
+	SinkType   string
+	DLQType    string
+)
 
-type WALConfig struct {
-	Enabled            bool   `mapstructure:"enabled"`
-	Dir                string `mapstructure:"dir"`
-	CheckpointInterval string `mapstructure:"checkpoint_interval"`
-}
+const (
+	SinkLog   SinkType = "log"
+	SinkKafka SinkType = "kafka"
+	SinkHTTP  SinkType = "http"
 
-type ShutdownConfig struct {
-	Timeout string `mapstructure:"timeout"`
-}
+	ChannelBuffer BufferType = "channel"
+	RedisBuffer   BufferType = "redis"
+	HybridBuffer  BufferType = "hybrid"
 
-type LoggingConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
-}
+	DLQTypeFile  DLQType = "file"
+	DLQTypeKafka DLQType = "kafka"
+)
 
-type ServerConfig struct {
-	GrpcPort      int  `mapstructure:"grpc_port"`
-	HttpPort      int  `mapstructure:"http_port"`
-	IngestEnabled bool `mapstructure:"ingest_enabled"`
-}
+const (
+	DefaultHybridBufferDir = "data/buffer"
 
-type IngestorConfig struct {
-	BufferSize int `mapstructure:"buffer_size"`
-}
-
-type BufferConfig struct {
-	Type   string             `mapstructure:"type"`
-	Redis  RedisBufferConfig  `mapstructure:"redis"`
-	Hybrid HybridBufferConfig `mapstructure:"hybrid"`
-}
-
-type HybridBufferConfig struct {
-	Dir string `mapstructure:"dir"`
-}
+	DefaultWALDir             = "data/wal"
+	DefaultCheckpointInterval = "60s"
+)
 
 type RedisBufferConfig struct {
 	Addr     string `mapstructure:"addr"`
@@ -54,16 +33,8 @@ type RedisBufferConfig struct {
 	Key      string `mapstructure:"key"`
 }
 
-type WorkerConfig struct {
-	NumWorkers   int    `mapstructure:"num_workers"`
-	BatchSize    int    `mapstructure:"batch_size"`
-	BatchTimeout string `mapstructure:"batch_timeout"`
-}
-
-type SinksConfig struct {
-	Active []SinkType  `mapstructure:"active" json:"active,omitempty"`
-	Kafka  KafkaConfig `mapstructure:"kafka" json:"kafka"`
-	HTTP   HTTPConfig  `mapstructure:"http" json:"http"`
+type HybridBufferConfig struct {
+	Dir string `mapstructure:"dir"`
 }
 
 type KafkaConfig struct {
@@ -76,21 +47,6 @@ type HTTPConfig struct {
 	Timeout string `mapstructure:"timeout"`
 }
 
-type SinkType string
-
-const (
-	SinkLog   SinkType = "log"
-	SinkKafka SinkType = "kafka"
-	SinkHTTP  SinkType = "http"
-)
-
-type DLQConfig struct {
-	Enabled bool           `mapstructure:"enabled"`
-	Type    string         `mapstructure:"type"`
-	File    FileDLQConfig  `mapstructure:"file"`
-	Kafka   KafkaDLQConfig `mapstructure:"kafka"`
-}
-
 type FileDLQConfig struct {
 	Dir string `mapstructure:"dir"`
 }
@@ -100,13 +56,64 @@ type KafkaDLQConfig struct {
 	Topic   string   `mapstructure:"topic"`
 }
 
-const DefaultWALDir = "data/wal"
-const DefaultHybridBufferDir = "data/buffer"
-const DefaultCheckpointInterval = "60s"
+type BufferConfig struct {
+	Type   BufferType         `mapstructure:"type"`
+	Redis  RedisBufferConfig  `mapstructure:"redis"`
+	Hybrid HybridBufferConfig `mapstructure:"hybrid"`
+}
 
-type DLQType string
+type SinksConfig struct {
+	Active []SinkType  `mapstructure:"active" json:"active,omitempty"`
+	Kafka  KafkaConfig `mapstructure:"kafka" json:"kafka"`
+	HTTP   HTTPConfig  `mapstructure:"http" json:"http"`
+}
 
-const (
-	DLQTypeFile  DLQType = "file"
-	DLQTypeKafka DLQType = "kafka"
-)
+type DLQConfig struct {
+	Enabled bool           `mapstructure:"enabled"`
+	Type    DLQType        `mapstructure:"type"`
+	File    FileDLQConfig  `mapstructure:"file"`
+	Kafka   KafkaDLQConfig `mapstructure:"kafka"`
+}
+
+type ServerConfig struct {
+	GrpcPort      int  `mapstructure:"grpc_port"`
+	HttpPort      int  `mapstructure:"http_port"`
+	IngestEnabled bool `mapstructure:"ingest_enabled"`
+}
+
+type IngestorConfig struct {
+	BufferSize int `mapstructure:"buffer_size"`
+}
+
+type WorkerConfig struct {
+	NumWorkers   int    `mapstructure:"num_workers"`
+	BatchSize    int    `mapstructure:"batch_size"`
+	BatchTimeout string `mapstructure:"batch_timeout"`
+}
+
+type LoggingConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
+}
+
+type WALConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	Dir                string `mapstructure:"dir"`
+	CheckpointInterval string `mapstructure:"checkpoint_interval"`
+}
+
+type ShutdownConfig struct {
+	Timeout string `mapstructure:"timeout"`
+}
+
+type Config struct {
+	Server   ServerConfig   `mapstructure:"server"`
+	Ingestor IngestorConfig `mapstructure:"ingestor"`
+	Buffer   BufferConfig   `mapstructure:"buffer"`
+	Worker   WorkerConfig   `mapstructure:"worker"`
+	Sinks    SinksConfig    `mapstructure:"sinks"`
+	DLQ      DLQConfig      `mapstructure:"dlq"`
+	WAL      WALConfig      `mapstructure:"wal"`
+	Logging  LoggingConfig  `mapstructure:"logging"`
+	Shutdown ShutdownConfig `mapstructure:"shutdown"`
+}
