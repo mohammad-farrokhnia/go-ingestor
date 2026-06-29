@@ -107,9 +107,6 @@ type ShutdownConfig struct {
 	Timeout string `mapstructure:"timeout"`
 }
 
-// TenancyConfig controls multi-tenancy. When Enabled is true every ingested
-// event must carry a non-empty tenant_id; when false (the default) the gateway
-// behaves exactly as a single-tenant service.
 type TenancyConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 }

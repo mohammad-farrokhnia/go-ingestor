@@ -116,8 +116,6 @@ func defaultOpts() pipelineOpts {
 	}
 }
 
-// mustDuration parses a duration string from test options, failing hard on a
-// bad literal (test-only helper).
 func mustDuration(s string) time.Duration {
 	d, err := time.ParseDuration(s)
 	if err != nil {

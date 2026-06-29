@@ -10,8 +10,6 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-// newTestGrpcServer builds a GrpcServer without binding a port, so the Ingest
-// handler can be exercised directly.
 func newTestGrpcServer(bufferSize int) *GrpcServer {
 	buf := buffer.NewChannelBuffer(bufferSize)
 	svc := ingestor.NewService(buf, metrics.NewMock(), nil)

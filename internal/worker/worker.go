@@ -17,8 +17,6 @@ import (
 
 const maxRetries = 3
 
-// drainFlushTimeout bounds the best-effort final flush performed during
-// shutdown, so a slow or hung sink cannot block worker exit indefinitely.
 const drainFlushTimeout = 5 * time.Second
 
 var (
@@ -26,17 +24,12 @@ var (
 	restartCooldown = 1 * time.Second
 )
 
-// Config holds the worker pool tunables. BatchTimeout is already parsed by the
-// caller (validated at config load), so the worker package never parses
-// durations or calls os.Exit.
 type Config struct {
 	NumWorkers   int
 	BatchSize    int
 	BatchTimeout time.Duration
 }
 
-// Deps holds the collaborators a worker needs: its input channel, the sinks it
-// writes to, and the metrics/DLQ/WAL plumbing.
 type Deps struct {
 	Buffer   <-chan *pb.IngestRequest
 	Sinks    []sinks.Sink
@@ -117,7 +110,7 @@ func runWorkerGuarded(ctx context.Context, id int, cfg Config, deps Deps) (exite
 	}()
 
 	runWorker(ctx, id, cfg, deps)
-	return true // only reached on clean exit
+	return true
 }
 
 func runWorker(ctx context.Context, id int, cfg Config, deps Deps) {
@@ -160,10 +153,6 @@ func runWorker(ctx context.Context, id int, cfg Config, deps Deps) {
 	}
 }
 
-// drainFlush performs the final flush during shutdown. The worker context may
-// already be cancelled (forced stop) or the buffer may simply have closed
-// (graceful drain); either way we must still attempt to write the last batch,
-// so we use an independent, time-bounded context instead of the worker ctx.
 func drainFlush(workerID int, batch []*pb.IngestRequest, deps Deps) {
 	ctx, cancel := context.WithTimeout(context.Background(), drainFlushTimeout)
 	defer cancel()

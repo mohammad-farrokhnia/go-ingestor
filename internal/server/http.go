@@ -81,8 +81,6 @@ func (s *HttpServer) SetIngestEnabled(enabled bool) {
 	s.ingestEnabled.Store(enabled)
 }
 
-// SetTenancyRequired toggles whether a non-empty tenant_id is required on
-// every ingested event. When false (the default) tenant_id is optional.
 func (s *HttpServer) SetTenancyRequired(required bool) {
 	s.requireTenant.Store(required)
 }
@@ -91,8 +89,6 @@ func (s *HttpServer) SetDLQ(d dlq.DeadLetterQueue) {
 	s.dlq = d
 }
 
-// SetAdminToken sets the bearer token required by /admin/* endpoints. When
-// empty (the default) the admin endpoints are unauthenticated.
 func (s *HttpServer) SetAdminToken(token string) {
 	s.adminToken = token
 }

@@ -69,9 +69,6 @@ func (b *RedisBuffer) Chan() <-chan *pb.IngestRequest {
 }
 
 func (b *RedisBuffer) Close() error {
-	// Signal the poll goroutine to stop and wait for it to finish *before*
-	// closing the channel. Otherwise poll could reach `b.ch <- &event` after
-	// the channel is closed and panic on send to a closed channel.
 	b.cancel()
 	b.pollWg.Wait()
 	close(b.ch)

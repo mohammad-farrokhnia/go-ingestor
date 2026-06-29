@@ -13,10 +13,6 @@ import (
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
 
-// authorizeAdmin guards the /admin/* endpoints. When no admin token is
-// configured the endpoints are open (backward compatible); otherwise the
-// request must carry a matching "Authorization: Bearer <token>" header.
-// On failure it writes a 401 response and returns false.
 func (s *HttpServer) authorizeAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if s.adminToken == "" {
 		return true

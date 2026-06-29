@@ -21,9 +21,6 @@ const (
 	dqCompactThreshold = 64 * megaByte
 )
 
-// diskQueue is a persistent FIFO queue backed by a binary append file.
-// Format per entry: [4B uint32 length][payload bytes (proto-encoded)]
-// The read offset is persisted to disk so the queue survives process restarts.
 type diskQueue struct {
 	mu          sync.Mutex
 	f           *os.File

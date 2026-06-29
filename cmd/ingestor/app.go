@@ -42,8 +42,6 @@ func (a *application) setup() error {
 
 	a.recorder = metrics.New()
 
-	// batch_timeout is validated at config load; parse it here so the worker
-	// package receives a ready time.Duration and never parses or exits itself.
 	a.batchTimeout, err = time.ParseDuration(cfg.Worker.BatchTimeout)
 	if err != nil {
 		return fmt.Errorf("parse worker.batch_timeout: %w", err)

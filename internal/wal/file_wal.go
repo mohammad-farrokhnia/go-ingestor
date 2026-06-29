@@ -19,9 +19,6 @@ const (
 	ackFileName = "wal.ack"
 )
 
-// FileWAL is a file-based Write-Ahead Log implementation.
-// Format per record: [8-byte seqNum (big-endian)] [4-byte length (big-endian)] [protobuf payload]
-// The ack file stores acknowledged sequence numbers as 8-byte big-endian uint64s.
 type FileWAL struct {
 	mu      sync.Mutex
 	dir     string
@@ -31,7 +28,6 @@ type FileWAL struct {
 	acked   map[uint64]struct{}
 }
 
-// NewFileWAL opens (or creates) a WAL in the given directory.
 func NewFileWAL(dir string) (*FileWAL, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("wal: create dir: %w", err)
@@ -72,7 +68,6 @@ func NewFileWAL(dir string) (*FileWAL, error) {
 	return fw, nil
 }
 
-// Append persists the event and returns its sequence number.
 func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 	data, err := proto.Marshal(event)
 	if err != nil {
@@ -85,7 +80,6 @@ func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 	fw.seq++
 	seqNum := fw.seq
 
-	// Write: [8-byte seqNum] [4-byte length] [payload]
 	header := make([]byte, 12)
 	binary.BigEndian.PutUint64(header[0:8], seqNum)
 	binary.BigEndian.PutUint32(header[8:12], uint32(len(data)))
@@ -97,11 +91,6 @@ func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 		return 0, fmt.Errorf("wal: write payload: %w", err)
 	}
 
-	// fsync before returning: the durability guarantee of a write-ahead log is
-	// that an Append survives a machine crash / power loss, not just a process
-	// crash. Without this, the event is only in the OS page cache and is lost
-	// on kernel panic or power failure. This serializes appends under the lock;
-	// batched group-commit is a future throughput optimization.
 	if err := fw.walFile.Sync(); err != nil {
 		return 0, fmt.Errorf("wal: sync: %w", err)
 	}
@@ -109,7 +98,6 @@ func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 	return seqNum, nil
 }
 
-// Acknowledge marks a sequence number as processed.
 func (fw *FileWAL) Acknowledge(seqNum uint64) error {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
@@ -124,7 +112,6 @@ func (fw *FileWAL) Acknowledge(seqNum uint64) error {
 	return nil
 }
 
-// Recover reads the WAL and returns unacknowledged entries for replay.
 func (fw *FileWAL) Recover() ([]Entry, error) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
@@ -179,7 +166,6 @@ func (fw *FileWAL) Recover() ([]Entry, error) {
 	return entries, nil
 }
 
-// Close syncs and closes both files.
 func (fw *FileWAL) Close() error {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
@@ -203,8 +189,7 @@ func (fw *FileWAL) Close() error {
 	return nil
 }
 
-// Checkpoint compacts the WAL by rewriting only unacknowledged entries.
-// This should be called periodically to reclaim disk space.
+
 func (fw *FileWAL) Checkpoint() error {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
@@ -247,7 +232,6 @@ func (fw *FileWAL) Checkpoint() error {
 	}
 	_ = f.Close()
 
-	// Rewrite WAL with only unacknowledged entries
 	tmpPath := walPath + ".tmp"
 	tmpFile, err := os.Create(tmpPath)
 	if err != nil {
@@ -277,19 +261,16 @@ func (fw *FileWAL) Checkpoint() error {
 	}
 	_ = tmpFile.Close()
 
-	// Close current WAL file, rename tmp over it
 	_ = fw.walFile.Close()
 	if err := os.Rename(tmpPath, walPath); err != nil {
 		return fmt.Errorf("wal: rename tmp: %w", err)
 	}
 
-	// Reopen
 	fw.walFile, err = os.OpenFile(walPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("wal: reopen after checkpoint: %w", err)
 	}
 
-	// Reset ack file (only keep unacked entries which means no acks needed)
 	_ = fw.ackFile.Close()
 	ackPath := filepath.Join(fw.dir, ackFileName)
 	fw.ackFile, err = os.OpenFile(ackPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
@@ -297,14 +278,12 @@ func (fw *FileWAL) Checkpoint() error {
 		return fmt.Errorf("wal: reopen ack after checkpoint: %w", err)
 	}
 
-	// Clear acked map since the WAL no longer contains those entries
 	fw.acked = make(map[uint64]struct{})
 
 	slog.Info("WAL checkpoint complete", "kept_entries", len(kept))
 	return nil
 }
 
-// loadAcked reads the ack file into memory.
 func (fw *FileWAL) loadAcked() error {
 	ackPath := filepath.Join(fw.dir, ackFileName)
 	f, err := os.Open(ackPath)
@@ -332,7 +311,6 @@ func (fw *FileWAL) loadAcked() error {
 	return nil
 }
 
-// loadMaxSeq scans the WAL to find the highest sequence number.
 func (fw *FileWAL) loadMaxSeq() error {
 	walPath := filepath.Join(fw.dir, walFileName)
 	f, err := os.Open(walPath)
@@ -362,7 +340,6 @@ func (fw *FileWAL) loadMaxSeq() error {
 			fw.seq = seqNum
 		}
 
-		// Skip payload
 		if _, err := f.Seek(int64(length), io.SeekCurrent); err != nil {
 			return err
 		}
