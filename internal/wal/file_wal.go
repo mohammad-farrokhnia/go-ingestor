@@ -97,6 +97,15 @@ func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 		return 0, fmt.Errorf("wal: write payload: %w", err)
 	}
 
+	// fsync before returning: the durability guarantee of a write-ahead log is
+	// that an Append survives a machine crash / power loss, not just a process
+	// crash. Without this, the event is only in the OS page cache and is lost
+	// on kernel panic or power failure. This serializes appends under the lock;
+	// batched group-commit is a future throughput optimization.
+	if err := fw.walFile.Sync(); err != nil {
+		return 0, fmt.Errorf("wal: sync: %w", err)
+	}
+
 	return seqNum, nil
 }
 

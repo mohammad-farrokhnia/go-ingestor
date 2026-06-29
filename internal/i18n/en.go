@@ -26,6 +26,9 @@ var enMessages = map[MessageCode]string{
 	MsgDLQNotReplayable:    "Configured DLQ backend does not support replay.",
 	MsgDLQStatsUnsupported: "Configured DLQ backend does not support stats.",
 
+	// Admin auth.
+	MsgUnauthorized: "Unauthorized.",
+
 	// Generic.
 	MsgInternalError: "Internal server error.",
 }

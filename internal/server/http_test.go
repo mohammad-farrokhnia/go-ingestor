@@ -305,6 +305,37 @@ func TestHandleDLQStats(t *testing.T) {
 	}
 }
 
+func TestHandleDLQReplay_AdminToken(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+	hs.SetAdminToken("s3cret")
+
+	// No token → 401.
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", w.Code)
+	}
+
+	// Wrong token → 401.
+	w = httptest.NewRecorder()
+	rWrong := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	rWrong.Header.Set("Authorization", "Bearer nope")
+	hs.handleDLQReplay(w, rWrong)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with wrong token, got %d", w.Code)
+	}
+
+	// Correct token → 200.
+	w = httptest.NewRecorder()
+	rOK := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	rOK.Header.Set("Authorization", "Bearer s3cret")
+	hs.handleDLQReplay(w, rOK)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with correct token, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandleIngest_TenancyRequired_MissingTenant(t *testing.T) {
 	hs := newTestServer(t, true, 10)
 	hs.SetTenancyRequired(true)

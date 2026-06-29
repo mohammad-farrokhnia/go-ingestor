@@ -1,15 +1,34 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/i18n"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/response"
 	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
 )
+
+// authorizeAdmin guards the /admin/* endpoints. When no admin token is
+// configured the endpoints are open (backward compatible); otherwise the
+// request must carry a matching "Authorization: Bearer <token>" header.
+// On failure it writes a 401 response and returns false.
+func (s *HttpServer) authorizeAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if s.adminToken == "" {
+		return true
+	}
+	const prefix = "Bearer "
+	got := strings.TrimPrefix(r.Header.Get("Authorization"), prefix)
+	if subtle.ConstantTimeCompare([]byte(got), []byte(s.adminToken)) == 1 {
+		return true
+	}
+	response.Error(w, r, http.StatusUnauthorized, i18n.MsgUnauthorized)
+	return false
+}
 
 // Ingest godoc
 //
@@ -135,6 +154,9 @@ func (s *HttpServer) handleDLQReplay(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, r, http.StatusMethodNotAllowed, i18n.MsgMethodNotAllowed)
 		return
 	}
+	if !s.authorizeAdmin(w, r) {
+		return
+	}
 
 	replayable, ok := s.dlq.(dlq.Replayable)
 	if !ok {
@@ -194,6 +216,9 @@ func (s *HttpServer) handleDLQStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		response.Error(w, r, http.StatusMethodNotAllowed, i18n.MsgMethodNotAllowed)
+		return
+	}
+	if !s.authorizeAdmin(w, r) {
 		return
 	}
 

@@ -116,6 +116,16 @@ func defaultOpts() pipelineOpts {
 	}
 }
 
+// mustDuration parses a duration string from test options, failing hard on a
+// bad literal (test-only helper).
+func mustDuration(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		panic("integration test: invalid duration " + s + ": " + err.Error())
+	}
+	return d
+}
+
 func newPipeline(
 	t *testing.T,
 	opts pipelineOpts,
@@ -145,18 +155,18 @@ func newPipeline(
 
 	ctx, cancelFn := context.WithCancel(context.Background())
 
-	wg = worker.Start(
-		ctx,
-		opts.numWorkers,
-		svc.Buf().Chan(),
-		opts.batchSize,
-		opts.batchTimeout,
-		[]sinks.Sink{sink},
-		metrics.NewMock(),
-		dlqImpl,
-		svc.WAL(),
-		svc.SeqTracker(),
-	)
+	wg = worker.Start(ctx, worker.Config{
+		NumWorkers:   opts.numWorkers,
+		BatchSize:    opts.batchSize,
+		BatchTimeout: mustDuration(opts.batchTimeout),
+	}, worker.Deps{
+		Buffer:   svc.Buf().Chan(),
+		Sinks:    []sinks.Sink{sink},
+		Recorder: metrics.NewMock(),
+		DLQ:      dlqImpl,
+		WAL:      svc.WAL(),
+		Tracker:  svc.SeqTracker(),
+	})
 
 	cancel = func() {
 		cancelFn()
@@ -443,18 +453,16 @@ func TestIntegration_GracefulShutdown_DrainAll(t *testing.T) {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 
-	wg := worker.Start(
-		ctx,
-		3,
-		svc.Buf().Chan(),
-		5,
-		"100ms",
-		[]sinks.Sink{mockSink},
-		metrics.NewMock(),
-		dlq.NewNoOpDLQ(),
-		nil,
-		nil,
-	)
+	wg := worker.Start(ctx, worker.Config{
+		NumWorkers:   3,
+		BatchSize:    5,
+		BatchTimeout: 100 * time.Millisecond,
+	}, worker.Deps{
+		Buffer:   svc.Buf().Chan(),
+		Sinks:    []sinks.Sink{mockSink},
+		Recorder: metrics.NewMock(),
+		DLQ:      dlq.NewNoOpDLQ(),
+	})
 
 	for i := 0; i < totalEvents; i++ {
 		if err := svc.Push(&pb.IngestRequest{

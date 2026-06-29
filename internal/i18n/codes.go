@@ -28,6 +28,9 @@ const (
 	MsgDLQNotReplayable    MessageCode = "DLQ_NOT_REPLAYABLE"
 	MsgDLQStatsUnsupported MessageCode = "DLQ_STATS_UNSUPPORTED"
 
+	// Admin auth.
+	MsgUnauthorized MessageCode = "UNAUTHORIZED"
+
 	// Generic.
 	MsgInternalError MessageCode = "INTERNAL_ERROR"
 )

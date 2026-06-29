@@ -23,6 +23,7 @@ type HttpServer struct {
 	requireTenant atomic.Bool
 	ingestor      *ingestor.Service
 	dlq           dlq.DeadLetterQueue
+	adminToken    string
 }
 
 type healthData struct {
@@ -88,6 +89,12 @@ func (s *HttpServer) SetTenancyRequired(required bool) {
 
 func (s *HttpServer) SetDLQ(d dlq.DeadLetterQueue) {
 	s.dlq = d
+}
+
+// SetAdminToken sets the bearer token required by /admin/* endpoints. When
+// empty (the default) the admin endpoints are unauthenticated.
+func (s *HttpServer) SetAdminToken(token string) {
+	s.adminToken = token
 }
 
 func (s *HttpServer) Start() error {

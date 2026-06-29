@@ -2,6 +2,7 @@ server:
   grpc_port: 50051
   http_port: 8080
   ingest_enabled: true
+  admin_token: ""   # bearer token for /admin/* endpoints; empty = unauthenticated
 
 ingestor:
   buffer_size: 1000

@@ -26,6 +26,9 @@ var faMessages = map[MessageCode]string{
 	MsgDLQNotReplayable:    "بک\u200cاند DLQ پیکربندی\u200cشده از بازپخش پشتیبانی نمی\u200cکند.",
 	MsgDLQStatsUnsupported: "بک\u200cاند DLQ پیکربندی\u200cشده از آمار پشتیبانی نمی\u200cکند.",
 
+	// Admin auth.
+	MsgUnauthorized: "دسترسی غیرمجاز.",
+
 	// Generic.
 	MsgInternalError: "خطای داخلی سرور.",
 }

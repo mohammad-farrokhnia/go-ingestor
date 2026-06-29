@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
 	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
@@ -19,15 +20,16 @@ import (
 )
 
 type application struct {
-	cfg      *config.Config
-	recorder metrics.Recorder
-	core     *ingestor.Service
-	http     *server.HttpServer
-	grpc     *server.GrpcServer
-	sinks    []sinks.Sink
-	dlq      dlq.DeadLetterQueue
-	wal      wal.WAL
-	workerWg *sync.WaitGroup
+	cfg          *config.Config
+	recorder     metrics.Recorder
+	core         *ingestor.Service
+	http         *server.HttpServer
+	grpc         *server.GrpcServer
+	sinks        []sinks.Sink
+	dlq          dlq.DeadLetterQueue
+	wal          wal.WAL
+	batchTimeout time.Duration
+	workerWg     *sync.WaitGroup
 }
 
 func (a *application) setup() error {
@@ -39,6 +41,13 @@ func (a *application) setup() error {
 	a.cfg = cfg
 
 	a.recorder = metrics.New()
+
+	// batch_timeout is validated at config load; parse it here so the worker
+	// package receives a ready time.Duration and never parses or exits itself.
+	a.batchTimeout, err = time.ParseDuration(cfg.Worker.BatchTimeout)
+	if err != nil {
+		return fmt.Errorf("parse worker.batch_timeout: %w", err)
+	}
 
 	a.wal, err = initWAL(cfg)
 	if err != nil {
@@ -66,6 +75,10 @@ func (a *application) setup() error {
 	}
 	a.http.SetDLQ(a.dlq)
 	a.http.SetTenancyRequired(cfg.Tenancy.Enabled)
+	a.http.SetAdminToken(cfg.Server.AdminToken)
+	if cfg.Server.AdminToken == "" {
+		slog.Warn("Admin endpoints (/admin/dlq/*) are unauthenticated; set server.admin_token to require a bearer token")
+	}
 
 	a.grpc, err = server.NewGrpcServer(cfg.Server.GrpcPort, a.core, a.recorder, cfg.Server.IngestEnabled)
 	if err != nil {
@@ -90,18 +103,18 @@ func (a *application) run(workerCtx context.Context) {
 
 	replayWAL(a.wal, a.core)
 
-	a.workerWg = worker.Start(
-		workerCtx,
-		a.cfg.Worker.NumWorkers,
-		a.core.Buf().Chan(),
-		a.cfg.Worker.BatchSize,
-		a.cfg.Worker.BatchTimeout,
-		a.sinks,
-		a.recorder,
-		a.dlq,
-		a.wal,
-		a.core.SeqTracker(),
-	)
+	a.workerWg = worker.Start(workerCtx, worker.Config{
+		NumWorkers:   a.cfg.Worker.NumWorkers,
+		BatchSize:    a.cfg.Worker.BatchSize,
+		BatchTimeout: a.batchTimeout,
+	}, worker.Deps{
+		Buffer:   a.core.Buf().Chan(),
+		Sinks:    a.sinks,
+		Recorder: a.recorder,
+		DLQ:      a.dlq,
+		WAL:      a.wal,
+		Tracker:  a.core.SeqTracker(),
+	})
 
 	a.http.SetReady(true)
 	slog.Info("Ingestor service ready")

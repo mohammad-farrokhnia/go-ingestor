@@ -76,9 +76,10 @@ type DLQConfig struct {
 }
 
 type ServerConfig struct {
-	GrpcPort      int  `mapstructure:"grpc_port"`
-	HttpPort      int  `mapstructure:"http_port"`
-	IngestEnabled bool `mapstructure:"ingest_enabled"`
+	GrpcPort      int    `mapstructure:"grpc_port"`
+	HttpPort      int    `mapstructure:"http_port"`
+	IngestEnabled bool   `mapstructure:"ingest_enabled"`
+	AdminToken    string `mapstructure:"admin_token"`
 }
 
 type IngestorConfig struct {
