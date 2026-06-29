@@ -9,6 +9,7 @@ const (
 	MsgDisabled         MessageCode = "DISABLED"
 	MsgInvalidJSON      MessageCode = "INVALID_JSON"
 	MsgMissingEventID   MessageCode = "MISSING_EVENT_ID"
+	MsgMissingTenantID  MessageCode = "MISSING_TENANT_ID"
 	MsgMethodNotAllowed MessageCode = "METHOD_NOT_ALLOWED"
 	MsgNotConfigured    MessageCode = "NOT_CONFIGURED"
 

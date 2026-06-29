@@ -59,12 +59,21 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if s.requireTenant.Load() && body.TenantID == "" {
+		lang := i18n.DetectLangFromRequest(r)
+		response.Error(w, r, http.StatusBadRequest, i18n.MsgMissingTenantID, response.FieldError{
+			Field:   "tenant_id",
+			Message: i18n.Translate(lang, i18n.MsgMissingTenantID),
+		})
+		return
+	}
 
 	req := &pb.IngestRequest{
 		EventId:   body.EventID,
 		Source:    body.Source,
 		Payload:   body.Payload,
 		Timestamp: body.Timestamp,
+		TenantId:  body.TenantID,
 	}
 	if err := s.ingestor.Push(req); err != nil {
 		response.Error(w, r, http.StatusServiceUnavailable, i18n.MsgDropped)

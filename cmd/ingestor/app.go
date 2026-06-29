@@ -65,11 +65,13 @@ func (a *application) setup() error {
 		return fmt.Errorf("init HTTP server: %w", err)
 	}
 	a.http.SetDLQ(a.dlq)
+	a.http.SetTenancyRequired(cfg.Tenancy.Enabled)
 
 	a.grpc, err = server.NewGrpcServer(cfg.Server.GrpcPort, a.core, a.recorder, cfg.Server.IngestEnabled)
 	if err != nil {
 		return fmt.Errorf("init gRPC server: %w", err)
 	}
+	a.grpc.SetTenancyRequired(cfg.Tenancy.Enabled)
 
 	return nil
 }
@@ -124,7 +126,6 @@ func initIngestorService(cfg *config.Config, recorder metrics.Recorder, w wal.WA
 	}
 	return ingestor.NewService(buf, recorder, w), nil
 }
-
 
 func initWAL(cfg *config.Config) (wal.WAL, error) {
 	if !cfg.WAL.Enabled {

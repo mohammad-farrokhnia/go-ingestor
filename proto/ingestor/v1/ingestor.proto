@@ -13,6 +13,7 @@ message IngestRequest {
   string source = 2;
   string payload = 3;
   int64 timestamp = 4;
+  string tenant_id = 5;
 }
 
 message IngestResponse {

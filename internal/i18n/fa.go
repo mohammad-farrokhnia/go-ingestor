@@ -7,6 +7,7 @@ var faMessages = map[MessageCode]string{
 	MsgDisabled:         "دریافت رویداد در حال حاضر غیرفعال است.",
 	MsgInvalidJSON:      "ساختار JSON درخواست نامعتبر است.",
 	MsgMissingEventID:   "فیلد 'event_id' الزامی است.",
+	MsgMissingTenantID:  "فیلد 'tenant_id' الزامی است.",
 	MsgMethodNotAllowed: "این متد مجاز نیست.",
 	MsgNotConfigured:    "سرویس دریافت\u200cکننده پیکربندی نشده است.",
 

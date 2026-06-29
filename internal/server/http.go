@@ -20,6 +20,7 @@ type HttpServer struct {
 	addr          string
 	ready         atomic.Bool
 	ingestEnabled atomic.Bool
+	requireTenant atomic.Bool
 	ingestor      *ingestor.Service
 	dlq           dlq.DeadLetterQueue
 }
@@ -37,6 +38,7 @@ type httpIngestRequest struct {
 	Source    string `json:"source"   example:"web"`
 	Payload   string `json:"payload"  example:"{\"key\":\"value\"}"`
 	Timestamp int64  `json:"timestamp" example:"1718000000"`
+	TenantID  string `json:"tenant_id" example:"acme"`
 }
 
 type httpIngestResponse struct {
@@ -76,6 +78,12 @@ func NewHttpServer(port int, svc *ingestor.Service, ingestEnabled bool) (*HttpSe
 
 func (s *HttpServer) SetIngestEnabled(enabled bool) {
 	s.ingestEnabled.Store(enabled)
+}
+
+// SetTenancyRequired toggles whether a non-empty tenant_id is required on
+// every ingested event. When false (the default) tenant_id is optional.
+func (s *HttpServer) SetTenancyRequired(required bool) {
+	s.requireTenant.Store(required)
 }
 
 func (s *HttpServer) SetDLQ(d dlq.DeadLetterQueue) {

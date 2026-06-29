@@ -304,3 +304,50 @@ func TestHandleDLQStats(t *testing.T) {
 		t.Errorf("expected 2 entries, got %d", env.Data.TotalEntries)
 	}
 }
+
+func TestHandleIngest_TenancyRequired_MissingTenant(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetTenancyRequired(true)
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1","source":"x"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode resp: %v", err)
+	}
+	if resp.Error.Code != "MISSING_TENANT_ID" {
+		t.Errorf("expected error code MISSING_TENANT_ID, got %q", resp.Error.Code)
+	}
+}
+
+func TestHandleIngest_TenancyRequired_ThreadsTenantID(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetTenancyRequired(true)
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1","tenant_id":"acme"}`)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", w.Code, w.Body.String())
+	}
+	req := <-hs.ingestor.Buf().Chan()
+	if req.TenantId != "acme" {
+		t.Errorf("expected TenantId=acme in buffered event, got %q", req.TenantId)
+	}
+}
+
+func TestHandleIngest_TenancyDisabled_TenantOptional(t *testing.T) {
+	hs := newTestServer(t, true, 10) // requireTenant defaults to false
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1"}`)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 when tenancy disabled, got %d body=%s", w.Code, w.Body.String())
+	}
+}
