@@ -15,6 +15,7 @@ import (
 	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/ingestor/internal/tenant"
 	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
 	"github.com/mohammad-farrokhnia/ingestor/internal/worker"
 )
@@ -57,7 +58,13 @@ func (a *application) setup() error {
 		return fmt.Errorf("init ingestor service: %w", err)
 	}
 
-	a.sinks, err = sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks)
+	tenants := tenant.NewRegistry(cfg.Tenancy)
+	a.core.SetTenants(tenants)
+	if tenants.Enabled() {
+		slog.Info("Multi-tenancy enabled", "tenants", len(cfg.Tenancy.Tenants), "default_rate_limit", cfg.Tenancy.DefaultRateLimit)
+	}
+
+	a.sinks, err = sinks.BuildMultiSinks(cfg.Sinks.Active, cfg.Sinks, tenants)
 	if err != nil {
 		return fmt.Errorf("build sinks: %w", err)
 	}

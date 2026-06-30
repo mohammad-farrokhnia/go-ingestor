@@ -109,13 +109,13 @@ type ShutdownConfig struct {
 
 type TenantConfig struct {
 	ID         string `mapstructure:"id"`
-	RateLimit  int    `mapstructure:"rate_limit"`  // events/sec; 0 = inherit default
-	KafkaTopic string `mapstructure:"kafka_topic"` // per-tenant Kafka topic override
+	RateLimit  int    `mapstructure:"rate_limit"`
+	KafkaTopic string `mapstructure:"kafka_topic"`
 }
 
 type TenancyConfig struct {
 	Enabled          bool           `mapstructure:"enabled"`
-	DefaultRateLimit int            `mapstructure:"default_rate_limit"` // events/sec for tenants without an explicit limit; 0 = unlimited
+	DefaultRateLimit int            `mapstructure:"default_rate_limit"`
 	Tenants          []TenantConfig `mapstructure:"tenants"`
 }
 
