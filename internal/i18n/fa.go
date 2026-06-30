@@ -4,6 +4,7 @@ var faMessages = map[MessageCode]string{
 	// Ingest.
 	MsgAccepted:         "رویداد پذیرفته شد.",
 	MsgDropped:          "بافر پر است. رویداد رها شد.",
+	MsgTenantQuota:      "محدودیت نرخ مستأجر فراتر رفت. رویداد رها شد.",
 	MsgDisabled:         "دریافت رویداد در حال حاضر غیرفعال است.",
 	MsgInvalidJSON:      "ساختار JSON درخواست نامعتبر است.",
 	MsgMissingEventID:   "فیلد 'event_id' الزامی است.",

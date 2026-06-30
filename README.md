@@ -44,7 +44,7 @@ A high-throughput event ingestion gateway written in Go 1.24. Accepts fire-and-f
 - Retry with quadratic backoff — up to 3 attempts (100 ms / 400 ms); permanent errors skip retries
 - Write-ahead log (WAL) — binary file log with fsync-per-append, checkpoint compaction, crash recovery
 - Dead-letter queue — daily JSONL files or Kafka topic; replayable via admin endpoint
-- Multi-tenancy — optional `tenant_id` enforcement per request (v1.1)
+- Multi-tenancy — optional `tenant_id` enforcement, per-tenant rate limiting (token bucket), per-tenant Kafka topic routing, and `tenant`-labelled metrics 
 - i18n responses — English and Persian (Farsi) via `Accept-Language` header
 - Admin endpoints — DLQ replay and stats, protected with a Bearer token
 - Prometheus metrics — events received/dropped, buffer size, batch flush histogram, worker panics
@@ -139,6 +139,7 @@ Error responses use the same envelope shape with an `error` key instead of `data
 | 400 | `MISSING_TENANT_ID` | `tenant_id` required but absent |
 | 400 | `INVALID_JSON` | Malformed body or unknown fields |
 | 401 | `UNAUTHORIZED` | Admin endpoint — invalid or missing token |
+| 429 | `TENANT_QUOTA_EXCEEDED` | Tenant exceeded its configured rate limit |
 | 503 | `DISABLED` | Ingest disabled in config or during shutdown |
 | 503 | `DROPPED` | Buffer full |
 
@@ -220,6 +221,13 @@ wal:
 
 tenancy:
   enabled: false            # set true to require tenant_id on every event
+  default_rate_limit: 0     # events/sec for tenants without an explicit limit; 0 = unlimited
+  tenants:                  # per-tenant overrides (only consulted when enabled: true)
+    - id: "acme"
+      rate_limit: 5000      # events/sec; 0 = inherit default_rate_limit
+      kafka_topic: "events.acme"   # routes this tenant's events to a dedicated topic
+    - id: "globex"
+      rate_limit: 100
 
 logging:
   level: "info"             # debug | info | warn | error
@@ -239,8 +247,8 @@ Environment variables override YAML via `_` separator (e.g. `SINKS_KAFKA_TOPIC=e
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `events_received_total` | Counter | Total events received |
-| `events_dropped_total` | Counter | Events dropped (buffer full or invalid) |
+| `events_received_total` | Counter | Total events received (labelled by `tenant`) |
+| `events_dropped_total` | Counter | Events dropped — buffer full, WAL error, or tenant quota (labelled by `tenant`) |
 | `batch_flush_duration_seconds` | Histogram | Per-batch flush latency |
 | `buffer_current_size` | Gauge | Current buffered event count |
 | `worker_panics_total` | Counter | Recovered worker panics |

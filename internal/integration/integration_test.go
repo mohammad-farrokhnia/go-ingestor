@@ -25,6 +25,7 @@ import (
 	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
 	"github.com/mohammad-farrokhnia/ingestor/internal/server"
 	"github.com/mohammad-farrokhnia/ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/ingestor/internal/tenant"
 	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
 	"github.com/mohammad-farrokhnia/ingestor/internal/worker"
 	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
@@ -778,5 +779,70 @@ func TestIntegration_DLQReplay_ReprocessesEvents(t *testing.T) {
 	}) {
 		t.Fatalf("replayed events did not reach sink: got %d, want %d",
 			workingSink.TotalEvents(), eventCount)
+	}
+}
+
+func TestIntegration_Tenancy_QuotaIsolation(t *testing.T) {
+	mockSink := sinks.NewMockSink()
+	svc, cancel, wg := newPipeline(t, defaultOpts(), mockSink, dlq.NewNoOpDLQ())
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
+
+	svc.SetTenants(tenant.NewRegistry(config.TenancyConfig{
+		Enabled: true,
+		Tenants: []config.TenantConfig{
+			{ID: "acme", RateLimit: 2},
+			{ID: "globex"},
+		},
+	}))
+
+	hs, err := server.NewHttpServer(0, svc, true)
+	if err != nil {
+		t.Fatalf("NewHttpServer: %v", err)
+	}
+	hs.SetTenancyRequired(true)
+	ts := httptest.NewServer(hs.Handler())
+	defer ts.Close()
+
+	post := func(tenantID, eventID string) int {
+		body := fmt.Sprintf(`{"event_id":%q,"tenant_id":%q,"payload":"{}"}`, eventID, tenantID)
+		resp, err := http.Post(ts.URL+"/ingest", "application/json", bytes.NewBufferString(body))
+		if err != nil {
+			t.Fatalf("POST /ingest: %v", err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	acmeAdmitted, acmeThrottled := 0, 0
+	for i := 0; i < 6; i++ {
+		switch post("acme", fmt.Sprintf("acme-%d", i)) {
+		case http.StatusAccepted:
+			acmeAdmitted++
+		case http.StatusTooManyRequests:
+			acmeThrottled++
+		default:
+			t.Fatalf("unexpected status for acme event %d", i)
+		}
+	}
+	if acmeAdmitted != 2 {
+		t.Errorf("acme admitted = %d, want 2 (burst)", acmeAdmitted)
+	}
+	if acmeThrottled != 4 {
+		t.Errorf("acme throttled = %d, want 4", acmeThrottled)
+	}
+
+	for i := 0; i < 5; i++ {
+		if got := post("globex", fmt.Sprintf("globex-%d", i)); got != http.StatusAccepted {
+			t.Fatalf("globex event %d got %d, want 202 (isolation broken)", i, got)
+		}
+	}
+
+	if !waitFor(t, 3*time.Second, 20*time.Millisecond, func() bool {
+		return mockSink.TotalEvents() == 7
+	}) {
+		t.Fatalf("expected 7 events at sink, got %d", mockSink.TotalEvents())
 	}
 }

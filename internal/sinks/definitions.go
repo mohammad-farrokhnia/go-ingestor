@@ -17,6 +17,10 @@ type Sink interface {
 	Close() error
 }
 
+type TopicRouter interface {
+	KafkaTopic(tenantID, defaultTopic string) string
+}
+
 type SinkType = config.SinkType
 
 const (
@@ -28,6 +32,7 @@ const (
 type KafkaSink struct {
 	writer *kafka.Writer
 	topic  string
+	router TopicRouter
 }
 type HTTPSink struct {
 	client  *http.Client

@@ -1,10 +1,13 @@
 package ingestor
 
 import (
+	"errors"
 	"testing"
 
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
 	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
 	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/tenant"
 	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
@@ -92,6 +95,62 @@ func TestService_Push_BufferFull(t *testing.T) {
 	}
 	if recorder.GetEventsReceived() != 3 {
 		t.Errorf("expected 3 events received, got %d", recorder.GetEventsReceived())
+	}
+}
+
+func TestService_Push_TenantQuotaExceeded(t *testing.T) {
+	recorder := metrics.NewMock()
+	buf := buffer.NewChannelBuffer(100)
+	svc := NewService(buf, recorder, nil)
+	svc.SetTenants(tenant.NewRegistry(config.TenancyConfig{
+		Enabled: true,
+		Tenants: []config.TenantConfig{{ID: "acme", RateLimit: 3}},
+	}))
+
+	admitted, rejected := 0, 0
+	for i := 0; i < 10; i++ {
+		err := svc.Push(&pb.IngestRequest{EventId: "e", TenantId: "acme"})
+		switch {
+		case err == nil:
+			admitted++
+		case errors.Is(err, ErrTenantQuotaExceeded):
+			rejected++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	if admitted != 3 {
+		t.Errorf("expected 3 admitted (burst), got %d", admitted)
+	}
+	if rejected != 7 {
+		t.Errorf("expected 7 rejected, got %d", rejected)
+	}
+	if recorder.GetEventsReceivedByTenant("acme") != 10 {
+		t.Errorf("expected 10 received for acme, got %d", recorder.GetEventsReceivedByTenant("acme"))
+	}
+	if recorder.GetEventsDroppedByTenant("acme") != 7 {
+		t.Errorf("expected 7 dropped for acme, got %d", recorder.GetEventsDroppedByTenant("acme"))
+	}
+	if buf.Len() != 3 {
+		t.Errorf("expected 3 events buffered, got %d", buf.Len())
+	}
+}
+
+func TestService_Push_UnknownTenantLabelledOther(t *testing.T) {
+	recorder := metrics.NewMock()
+	buf := buffer.NewChannelBuffer(10)
+	svc := NewService(buf, recorder, nil)
+	svc.SetTenants(tenant.NewRegistry(config.TenancyConfig{
+		Enabled: true,
+		Tenants: []config.TenantConfig{{ID: "acme"}},
+	}))
+
+	if err := svc.Push(&pb.IngestRequest{EventId: "e", TenantId: "ghost"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if recorder.GetEventsReceivedByTenant(tenant.OtherLabel) != 1 {
+		t.Errorf("unknown tenant should be bucketed as %q", tenant.OtherLabel)
 	}
 }
 

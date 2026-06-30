@@ -107,8 +107,16 @@ type ShutdownConfig struct {
 	Timeout string `mapstructure:"timeout"`
 }
 
+type TenantConfig struct {
+	ID         string `mapstructure:"id"`
+	RateLimit  int    `mapstructure:"rate_limit"`
+	KafkaTopic string `mapstructure:"kafka_topic"`
+}
+
 type TenancyConfig struct {
-	Enabled bool `mapstructure:"enabled"`
+	Enabled          bool           `mapstructure:"enabled"`
+	DefaultRateLimit int            `mapstructure:"default_rate_limit"`
+	Tenants          []TenantConfig `mapstructure:"tenants"`
 }
 
 type Config struct {

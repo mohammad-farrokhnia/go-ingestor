@@ -32,6 +32,7 @@ func (c *Config) Validate() error {
 	c.validateDLQ(&errs)
 	c.validateWAL(&errs)
 	c.validateShutdown(&errs)
+	c.validateTenancy(&errs)
 
 	if len(errs) == 0 {
 		return nil
@@ -156,6 +157,29 @@ func (c *Config) validateShutdown(errs *[]string) {
 		*errs = appendErr(*errs, "shutdown.timeout", fmt.Sprintf("invalid duration: %v", err))
 	} else if d <= 0 {
 		*errs = appendErr(*errs, "shutdown.timeout", "must be > 0")
+	}
+}
+
+func (c *Config) validateTenancy(errs *[]string) {
+	if !c.Tenancy.Enabled {
+		return
+	}
+	if c.Tenancy.DefaultRateLimit < 0 {
+		*errs = appendErr(*errs, "tenancy.default_rate_limit", "must be >= 0 (0 = unlimited)")
+	}
+	seen := make(map[string]struct{}, len(c.Tenancy.Tenants))
+	for i, t := range c.Tenancy.Tenants {
+		if t.ID == "" {
+			*errs = appendErr(*errs, fmt.Sprintf("tenancy.tenants[%d].id", i), "must be set")
+			continue
+		}
+		if _, dup := seen[t.ID]; dup {
+			*errs = appendErr(*errs, fmt.Sprintf("tenancy.tenants[%d].id", i), fmt.Sprintf("duplicate tenant id %q", t.ID))
+		}
+		seen[t.ID] = struct{}{}
+		if t.RateLimit < 0 {
+			*errs = appendErr(*errs, fmt.Sprintf("tenancy.tenants[%d].rate_limit", i), "must be >= 0 (0 = inherit default)")
+		}
 	}
 }
 

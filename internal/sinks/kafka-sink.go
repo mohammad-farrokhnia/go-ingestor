@@ -24,7 +24,6 @@ func newKafkaSink(cfg config.KafkaConfig) (*KafkaSink, error) {
 
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(cfg.Brokers...),
-		Topic:        cfg.Topic,
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
 		Async:        false,
@@ -49,6 +48,7 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 			return apperr.NewPermanent(ks.Name(), fmt.Errorf("kafka marshal failed for event %s: %w", event.EventId, err))
 		}
 		messages = append(messages, kafka.Message{
+			Topic: ks.topicFor(event.TenantId),
 			Key:   []byte(event.EventId),
 			Value: payload,
 		})
@@ -60,6 +60,13 @@ func (ks *KafkaSink) Write(ctx context.Context, batch []*pb.IngestRequest) error
 
 	slog.Debug("Wrote messages to Kafka", "count", len(messages), "topic", ks.topic)
 	return nil
+}
+
+func (ks *KafkaSink) topicFor(tenantID string) string {
+	if ks.router != nil {
+		return ks.router.KafkaTopic(tenantID, ks.topic)
+	}
+	return ks.topic
 }
 
 func (ks *KafkaSink) Name() string {
