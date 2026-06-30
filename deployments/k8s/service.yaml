@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: go-ingestor
+  name: ingestor
   labels:
-    app: go-ingestor
+    app: ingestor
 spec:
   type: ClusterIP
   selector:
-    app: go-ingestor
+    app: ingestor
   ports:
     - name: grpc
       port: 50051

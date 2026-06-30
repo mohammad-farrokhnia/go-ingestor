@@ -1,4 +1,4 @@
-module github.com/mohammad-farrokhnia/go-ingestor
+module github.com/mohammad-farrokhnia/ingestor
 
 go 1.24.4
 

@@ -3,10 +3,10 @@ package ingestor
 import (
 	"log/slog"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 type Service struct {

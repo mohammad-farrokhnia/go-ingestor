@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func tempWALDir(t *testing.T) string {

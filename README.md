@@ -1,4 +1,4 @@
-# go-ingestor
+# ingestor
 
 A high-throughput, buffer-based ingestion gateway written in Go. Accepts fire-and-forget events via gRPC and HTTP, buffers them in memory (or Redis), and batch-forwards to pluggable sinks with retry, circuit breaker, and dead letter queue guarantees.
 
@@ -44,8 +44,8 @@ A high-throughput, buffer-based ingestion gateway written in Go. Accepts fire-an
 ### Quick Start
 
 ```bash
-git clone https://github.com/mohammad-farrokhnia/go-ingestor.git
-cd go-ingestor
+git clone https://github.com/mohammad-farrokhnia/ingestor.git
+cd ingestor
 cp configs/config.yaml.example configs/config.yaml
 make run
 ```

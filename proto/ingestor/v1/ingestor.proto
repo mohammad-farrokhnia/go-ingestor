@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ingestor.v1;
 
-option go_package = "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1";
+option go_package = "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1";
 
 service IngestorService {
   rpc Ingest (IngestRequest) returns (IngestResponse);

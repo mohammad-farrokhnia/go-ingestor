@@ -3,7 +3,7 @@ package dlq
 import (
 	"context"
 
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 type NoOpDLQ struct{}

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 const pumpInterval = 10 * time.Millisecond

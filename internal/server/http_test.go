@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func newTestServer(t *testing.T, ingestEnabled bool, bufferSize int) *HttpServer {

@@ -3,7 +3,7 @@ package sinks
 import (
 	"testing"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
 )
 
 func TestBuildSink_Log(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/i18n"
+	"github.com/mohammad-farrokhnia/ingestor/internal/i18n"
 )
 
 var (
@@ -24,7 +24,7 @@ func Init(name, ver string) {
 const requestIDHeader = "X-Request-Id"
 
 type Meta struct {
-	AppName     string `json:"appName"     example:"go-ingestor"`
+	AppName     string `json:"appName"     example:"ingestor"`
 	Version     string `json:"version"     example:"v1.0.0"`
 	RequestID   string `json:"requestId"   example:"550e8400-e29b-41d4-a716-446655440000"`
 	Timestamp   string `json:"timestamp"   example:"2026-06-15T10:00:00Z"`

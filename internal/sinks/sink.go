@@ -3,7 +3,7 @@ package sinks
 import (
 	"fmt"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
 )
 
 func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig) ([]Sink, error) {

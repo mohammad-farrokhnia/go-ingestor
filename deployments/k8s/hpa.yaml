@@ -1,14 +1,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: go-ingestor
+  name: ingestor
   labels:
-    app: go-ingestor
+    app: ingestor
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: go-ingestor
+    name: ingestor
   minReplicas: 2
   maxReplicas: 10
   metrics:

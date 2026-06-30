@@ -17,17 +17,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/configs"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/configs"
+	"github.com/mohammad-farrokhnia/ingestor/internal/apperr"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/server"
+	"github.com/mohammad-farrokhnia/ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
+	"github.com/mohammad-farrokhnia/ingestor/internal/worker"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func waitFor(t *testing.T, timeout, interval time.Duration, condition func() bool) bool {

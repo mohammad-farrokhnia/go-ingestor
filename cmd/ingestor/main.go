@@ -9,16 +9,16 @@ import (
 
 	_ "go.uber.org/automaxprocs"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/response"
+	"github.com/mohammad-farrokhnia/ingestor/internal/response"
 )
 
 var Version = "dev"
 
-const appName = "go-ingestor"
+const appName = "ingestor"
 
-// @title           go-ingestor API
+// @title           ingestor API
 // @version         1.0
-// @description     HTTP administration and ingestion API for go-ingestor.
+// @description     HTTP administration and ingestion API for ingestor.
 // @contact.name    Mohammad Farrokhnia
 // @contact.url     https://github.com/mohammad-farrokhnia
 // @license.name    MIT

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func TestLogSink_New(t *testing.T) {

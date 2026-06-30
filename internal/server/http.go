@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
