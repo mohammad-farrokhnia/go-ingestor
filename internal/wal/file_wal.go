@@ -2,6 +2,7 @@ package wal
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +19,41 @@ const (
 	walFileName = "wal.log"
 	ackFileName = "wal.ack"
 )
+
+const headerSize = 12
+
+type record struct {
+	seq     uint64
+	payload []byte
+}
+
+func writeRecord(w io.Writer, rec record) error {
+	var header [headerSize]byte
+	binary.BigEndian.PutUint64(header[0:8], rec.seq)
+	binary.BigEndian.PutUint32(header[8:12], uint32(len(rec.payload)))
+	if _, err := w.Write(header[:]); err != nil {
+		return err
+	}
+	if _, err := w.Write(rec.payload); err != nil {
+		return err
+	}
+	return nil
+}
+
+func readRecord(r io.Reader) (record, error) {
+	var header [headerSize]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
+		return record{}, err
+	}
+	seq := binary.BigEndian.Uint64(header[0:8])
+	length := binary.BigEndian.Uint32(header[8:12])
+
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(r, payload); err != nil {
+		return record{}, err
+	}
+	return record{seq: seq, payload: payload}, nil
+}
 
 type FileWAL struct {
 	mu      sync.Mutex
@@ -80,15 +116,8 @@ func (fw *FileWAL) Append(event *pb.IngestRequest) (uint64, error) {
 	fw.seq++
 	seqNum := fw.seq
 
-	header := make([]byte, 12)
-	binary.BigEndian.PutUint64(header[0:8], seqNum)
-	binary.BigEndian.PutUint32(header[8:12], uint32(len(data)))
-
-	if _, err := fw.walFile.Write(header); err != nil {
-		return 0, fmt.Errorf("wal: write header: %w", err)
-	}
-	if _, err := fw.walFile.Write(data); err != nil {
-		return 0, fmt.Errorf("wal: write payload: %w", err)
+	if err := writeRecord(fw.walFile, record{seq: seqNum, payload: data}); err != nil {
+		return 0, fmt.Errorf("wal: write record: %w", err)
 	}
 
 	if err := fw.walFile.Sync(); err != nil {
@@ -130,37 +159,29 @@ func (fw *FileWAL) Recover() ([]Entry, error) {
 
 	var entries []Entry
 	for {
-		var header [12]byte
-		if _, err := io.ReadFull(f, header[:]); err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				break
-			}
-			return nil, fmt.Errorf("wal: read header: %w", err)
+		rec, err := readRecord(f)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			slog.Warn("WAL: truncated record at end of file, skipping")
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("wal: read record: %w", err)
 		}
 
-		seqNum := binary.BigEndian.Uint64(header[0:8])
-		length := binary.BigEndian.Uint32(header[8:12])
-
-		payload := make([]byte, length)
-		if _, err := io.ReadFull(f, payload); err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				slog.Warn("WAL: truncated record at end of file, skipping", "seq", seqNum)
-				break
-			}
-			return nil, fmt.Errorf("wal: read payload: %w", err)
-		}
-
-		if _, ok := fw.acked[seqNum]; ok {
+		if _, ok := fw.acked[rec.seq]; ok {
 			continue
 		}
 
 		event := &pb.IngestRequest{}
-		if err := proto.Unmarshal(payload, event); err != nil {
-			slog.Warn("WAL: corrupt record, skipping", "seq", seqNum, "err", err)
+		if err := proto.Unmarshal(rec.payload, event); err != nil {
+			slog.Warn("WAL: corrupt record, skipping", "seq", rec.seq, "err", err)
 			continue
 		}
 
-		entries = append(entries, Entry{SeqNum: seqNum, Event: event})
+		entries = append(entries, Entry{SeqNum: rec.seq, Event: event})
 	}
 
 	return entries, nil
@@ -170,25 +191,13 @@ func (fw *FileWAL) Close() error {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 
-	var errs []error
-	if err := fw.walFile.Sync(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := fw.walFile.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := fw.ackFile.Sync(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := fw.ackFile.Close(); err != nil {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
+	return errors.Join(
+		fw.walFile.Sync(),
+		fw.walFile.Close(),
+		fw.ackFile.Sync(),
+		fw.ackFile.Close(),
+	)
 }
-
 
 func (fw *FileWAL) Checkpoint() error {
 	fw.mu.Lock()
@@ -200,34 +209,18 @@ func (fw *FileWAL) Checkpoint() error {
 		return fmt.Errorf("wal: open for checkpoint: %w", err)
 	}
 
-	var kept []struct {
-		seqNum  uint64
-		payload []byte
-	}
-
+	var kept []record
 	for {
-		var header [12]byte
-		if _, err := io.ReadFull(f, header[:]); err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				break
-			}
-			_ = f.Close()
-			return fmt.Errorf("wal: checkpoint read header: %w", err)
-		}
-
-		seqNum := binary.BigEndian.Uint64(header[0:8])
-		length := binary.BigEndian.Uint32(header[8:12])
-
-		payload := make([]byte, length)
-		if _, err := io.ReadFull(f, payload); err != nil {
+		rec, err := readRecord(f)
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			break
 		}
-
-		if _, ok := fw.acked[seqNum]; !ok {
-			kept = append(kept, struct {
-				seqNum  uint64
-				payload []byte
-			}{seqNum: seqNum, payload: payload})
+		if err != nil {
+			_ = f.Close()
+			return fmt.Errorf("wal: checkpoint read record: %w", err)
+		}
+		if _, ok := fw.acked[rec.seq]; !ok {
+			kept = append(kept, rec)
 		}
 	}
 	_ = f.Close()
@@ -238,19 +231,11 @@ func (fw *FileWAL) Checkpoint() error {
 		return fmt.Errorf("wal: create tmp: %w", err)
 	}
 
-	for _, entry := range kept {
-		header := make([]byte, 12)
-		binary.BigEndian.PutUint64(header[0:8], entry.seqNum)
-		binary.BigEndian.PutUint32(header[8:12], uint32(len(entry.payload)))
-		if _, err := tmpFile.Write(header); err != nil {
+	for _, rec := range kept {
+		if err := writeRecord(tmpFile, rec); err != nil {
 			_ = tmpFile.Close()
 			_ = os.Remove(tmpPath)
-			return fmt.Errorf("wal: write tmp: %w", err)
-		}
-		if _, err := tmpFile.Write(entry.payload); err != nil {
-			_ = tmpFile.Close()
-			_ = os.Remove(tmpPath)
-			return fmt.Errorf("wal: write tmp payload: %w", err)
+			return fmt.Errorf("wal: write tmp record: %w", err)
 		}
 	}
 
@@ -325,23 +310,15 @@ func (fw *FileWAL) loadMaxSeq() error {
 	}()
 
 	for {
-		var header [12]byte
-		if _, err := io.ReadFull(f, header[:]); err != nil {
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				break
-			}
+		rec, err := readRecord(f)
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			break
+		}
+		if err != nil {
 			return err
 		}
-
-		seqNum := binary.BigEndian.Uint64(header[0:8])
-		length := binary.BigEndian.Uint32(header[8:12])
-
-		if seqNum > fw.seq {
-			fw.seq = seqNum
-		}
-
-		if _, err := f.Seek(int64(length), io.SeekCurrent); err != nil {
-			return err
+		if rec.seq > fw.seq {
+			fw.seq = rec.seq
 		}
 	}
 	return nil

@@ -264,7 +264,7 @@ func TestHandleDLQReplay_WrongMethod(t *testing.T) {
 
 func TestHandleDLQReplay_NonReplayableDLQ_Returns501(t *testing.T) {
 	hs := newTestServer(t, true, 10)
-	hs.SetDLQ(dlq.NewNoOpDLQ()) // NoOpDLQ does not implement Replayable
+	hs.SetDLQ(dlq.NewNoOpDLQ())
 
 	w := httptest.NewRecorder()
 	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
@@ -371,7 +371,7 @@ func TestHandleIngest_TenancyRequired_ThreadsTenantID(t *testing.T) {
 }
 
 func TestHandleIngest_TenancyDisabled_TenantOptional(t *testing.T) {
-	hs := newTestServer(t, true, 10) // requireTenant defaults to false
+	hs := newTestServer(t, true, 10)
 
 	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1"}`)
 

@@ -124,7 +124,7 @@ func (d *FileDLQ) Stats() (DLQStats, error) {
 		return DLQStats{}, fmt.Errorf("dlq stats: glob: %w", err)
 	}
 
-	stats := DLQStats{Files: []DLQFileInfo{}} // non-nil slice for clean JSON
+	stats := DLQStats{Files: []DLQFileInfo{}}
 	for _, f := range files {
 		info, err := os.Stat(f)
 		if err != nil {
