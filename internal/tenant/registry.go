@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	OtherLabel = "_other"
+	OtherLabel  = "_other"
 	SingleLabel = "_single"
 )
 

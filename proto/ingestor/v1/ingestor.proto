@@ -17,6 +17,9 @@ message IngestRequest {
 }
 
 message IngestResponse {
-  string status = 1;
-  string error = 2;
+  string status = 1;        // machine-readable outcome: OK, ERROR, DISABLED, DROPPED
+  string error = 2;         // legacy English error detail (empty on success)
+  string message_code = 3;  // stable i18n code, e.g. ACCEPTED, MISSING_TENANT_ID
+  string message = 4;       // localized human-readable message
+  string lang = 5;          // language the message was localized to (en, fa)
 }
