@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// applyDefaults fills in optional fields that have a sensible default. It is
-// called by Load before Validate so that validation sees a complete config.
-// Keeping it separate means Validate has no side effects.
 func (c *Config) applyDefaults() {
 	if c.Buffer.Type == HybridBuffer && c.Buffer.Hybrid.Dir == "" {
 		c.Buffer.Hybrid.Dir = DefaultHybridBufferDir
@@ -24,8 +21,6 @@ func (c *Config) applyDefaults() {
 	}
 }
 
-// Validate checks the config for errors and returns them aggregated. It does
-// not mutate the config; defaults are applied separately by applyDefaults.
 func (c *Config) Validate() error {
 	var errs []string
 

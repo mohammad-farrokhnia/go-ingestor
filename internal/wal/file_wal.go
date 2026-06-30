@@ -20,16 +20,13 @@ const (
 	ackFileName = "wal.ack"
 )
 
-// headerSize is the fixed per-record header: [8-byte seq][4-byte payload length].
 const headerSize = 12
 
-// record is one WAL entry on disk: a sequence number and its protobuf payload.
 type record struct {
 	seq     uint64
 	payload []byte
 }
 
-// writeRecord encodes a record as [8-byte seq][4-byte len][payload].
 func writeRecord(w io.Writer, rec record) error {
 	var header [headerSize]byte
 	binary.BigEndian.PutUint64(header[0:8], rec.seq)
@@ -43,8 +40,6 @@ func writeRecord(w io.Writer, rec record) error {
 	return nil
 }
 
-// readRecord decodes the next record. It returns io.EOF at a clean end of log
-// and io.ErrUnexpectedEOF on a torn final record (a partial trailing write).
 func readRecord(r io.Reader) (record, error) {
 	var header [headerSize]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
