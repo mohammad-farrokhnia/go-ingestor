@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 var ErrBufferFull = errors.New("buffer is full")

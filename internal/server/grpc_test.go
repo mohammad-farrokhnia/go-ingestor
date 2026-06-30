@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func newTestGrpcServer(bufferSize int) *GrpcServer {

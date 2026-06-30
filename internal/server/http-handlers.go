@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/i18n"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/response"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/i18n"
+	"github.com/mohammad-farrokhnia/ingestor/internal/response"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func (s *HttpServer) authorizeAdmin(w http.ResponseWriter, r *http.Request) bool {

@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/internal/apperr"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 const maxRetries = 3

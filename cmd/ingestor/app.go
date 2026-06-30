@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/dlq"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/ingestor"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/server"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/sinks"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/wal"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/worker"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/server"
+	"github.com/mohammad-farrokhnia/ingestor/internal/sinks"
+	"github.com/mohammad-farrokhnia/ingestor/internal/wal"
+	"github.com/mohammad-farrokhnia/ingestor/internal/worker"
 )
 
 type application struct {
@@ -88,7 +88,7 @@ func (a *application) setup() error {
 }
 
 func (a *application) run(workerCtx context.Context) {
-	slog.Info("Starting go-ingestor", "version", Version)
+	slog.Info("Starting ingestor", "version", Version)
 	slog.Info("Starting ingestor service",
 		"buffer_type", a.cfg.Buffer.Type,
 		"buffer_size", a.cfg.Ingestor.BufferSize,

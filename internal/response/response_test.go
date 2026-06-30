@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/i18n"
+	"github.com/mohammad-farrokhnia/ingestor/internal/i18n"
 )
 
 func TestJSON_WritesSuccessEnvelope(t *testing.T) {
-	Init("go-ingestor-test", "v0.0.0-test")
+	Init("ingestor-test", "v0.0.0-test")
 
 	req := httptest.NewRequest(http.MethodPost, "/ingest", nil)
 	w := httptest.NewRecorder()
@@ -37,8 +37,8 @@ func TestJSON_WritesSuccessEnvelope(t *testing.T) {
 	if got.Data.EventID != "evt-1" {
 		t.Errorf("data.event_id = %q, want evt-1", got.Data.EventID)
 	}
-	if got.Meta.AppName != "go-ingestor-test" {
-		t.Errorf("meta.appName = %q, want go-ingestor-test", got.Meta.AppName)
+	if got.Meta.AppName != "ingestor-test" {
+		t.Errorf("meta.appName = %q, want ingestor-test", got.Meta.AppName)
 	}
 	if got.Meta.MessageCode != string(i18n.MsgAccepted) {
 		t.Errorf("meta.messageCode = %q, want %q", got.Meta.MessageCode, i18n.MsgAccepted)
@@ -55,7 +55,7 @@ func TestJSON_WritesSuccessEnvelope(t *testing.T) {
 }
 
 func TestError_WritesErrorEnvelopeWithFields(t *testing.T) {
-	Init("go-ingestor-test", "v0.0.0-test")
+	Init("ingestor-test", "v0.0.0-test")
 
 	req := httptest.NewRequest(http.MethodPost, "/ingest", nil)
 	w := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestError_WritesErrorEnvelopeWithFields(t *testing.T) {
 }
 
 func TestNewMeta_PropagatesIncomingRequestID(t *testing.T) {
-	Init("go-ingestor-test", "v0.0.0-test")
+	Init("ingestor-test", "v0.0.0-test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	req.Header.Set("X-Request-Id", "caller-supplied-id")
@@ -107,7 +107,7 @@ func TestNewMeta_PropagatesIncomingRequestID(t *testing.T) {
 }
 
 func TestNewMeta_GeneratesRequestIDWhenAbsent(t *testing.T) {
-	Init("go-ingestor-test", "v0.0.0-test")
+	Init("ingestor-test", "v0.0.0-test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
@@ -130,7 +130,7 @@ func TestNewMeta_GeneratesRequestIDWhenAbsent(t *testing.T) {
 }
 
 func TestJSON_RespectsAcceptLanguage(t *testing.T) {
-	Init("go-ingestor-test", "v0.0.0-test")
+	Init("ingestor-test", "v0.0.0-test")
 
 	req := httptest.NewRequest(http.MethodPost, "/ingest", nil)
 	req.Header.Set("Accept-Language", "fa")

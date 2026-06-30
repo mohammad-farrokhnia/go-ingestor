@@ -64,8 +64,8 @@ services:
     build:
       context: ../..
       dockerfile: deployments/docker/Dockerfile
-    image: go-ingestor:latest
-    container_name: go-ingestor
+    image: ingestor:latest
+    container_name: ingestor
     depends_on:
       kafka:
         condition: service_healthy

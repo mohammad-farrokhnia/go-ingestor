@@ -3,7 +3,7 @@ package dlq
 import (
 	"fmt"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
 )
 
 func NewDLQ(cfg config.DLQConfig) (DeadLetterQueue, error) {

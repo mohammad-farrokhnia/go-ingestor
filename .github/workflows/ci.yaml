@@ -46,4 +46,4 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t go-ingestor:ci -f deployments/docker/Dockerfile .
+      - run: docker build -t ingestor:ci -f deployments/docker/Dockerfile .

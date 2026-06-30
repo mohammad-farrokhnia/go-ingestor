@@ -3,9 +3,9 @@ package ingestor
 import (
 	"testing"
 
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/buffer"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/metrics"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	"github.com/mohammad-farrokhnia/ingestor/internal/buffer"
+	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
 func TestNewService(t *testing.T) {

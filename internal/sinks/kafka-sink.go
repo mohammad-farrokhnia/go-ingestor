@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
-	"github.com/mohammad-farrokhnia/go-ingestor/internal/apperr"
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	config "github.com/mohammad-farrokhnia/ingestor/configs"
+	"github.com/mohammad-farrokhnia/ingestor/internal/apperr"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 	"github.com/segmentio/kafka-go"
 )
 

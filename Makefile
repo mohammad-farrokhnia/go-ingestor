@@ -57,14 +57,14 @@ proto:
 
 
 docker-build:
-	docker build -t go-ingestor:$(VERSION) -f deployments/docker/Dockerfile .
+	docker build -t ingestor:$(VERSION) -f deployments/docker/Dockerfile .
 
 docker-run:
 	docker run --rm \
 	  -p 50051:50051 \
 	  -p 8080:8080 \
 	  -v $(PWD)/configs:/app/configs:ro \
-	  go-ingestor:$(VERSION)
+	  ingestor:$(VERSION)
 
 
 infra-up:

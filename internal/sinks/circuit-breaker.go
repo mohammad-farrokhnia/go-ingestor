@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	pb "github.com/mohammad-farrokhnia/go-ingestor/proto/ingestor/v1"
+	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 	"github.com/sony/gobreaker/v2"
 )
 
