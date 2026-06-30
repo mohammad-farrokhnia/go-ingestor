@@ -6,6 +6,7 @@ const (
 	// Ingest.
 	MsgAccepted         MessageCode = "ACCEPTED"
 	MsgDropped          MessageCode = "DROPPED"
+	MsgTenantQuota      MessageCode = "TENANT_QUOTA_EXCEEDED"
 	MsgDisabled         MessageCode = "DISABLED"
 	MsgInvalidJSON      MessageCode = "INVALID_JSON"
 	MsgMissingEventID   MessageCode = "MISSING_EVENT_ID"
