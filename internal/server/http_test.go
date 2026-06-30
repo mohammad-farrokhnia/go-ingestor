@@ -16,6 +16,7 @@ import (
 	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/ingestor/internal/metrics"
+	"github.com/mohammad-farrokhnia/ingestor/internal/tenant"
 	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
 
@@ -377,5 +378,47 @@ func TestHandleIngest_TenancyDisabled_TenantOptional(t *testing.T) {
 
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("expected 202 when tenancy disabled, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleIngest_TenantQuotaExceeded(t *testing.T) {
+	buf := buffer.NewChannelBuffer(100)
+	svc := ingestor.NewService(buf, metrics.NewMock(), nil)
+	svc.SetTenants(tenant.NewRegistry(config.TenancyConfig{
+		Enabled: true,
+		Tenants: []config.TenantConfig{{ID: "acme", RateLimit: 2}},
+	}))
+	hs, err := NewHttpServer(0, svc, true)
+	if err != nil {
+		t.Fatalf("NewHttpServer: %v", err)
+	}
+	hs.SetTenancyRequired(true)
+
+	body := `{"event_id":"e","tenant_id":"acme"}`
+
+	for i := 0; i < 2; i++ {
+		w := doIngest(t, hs, http.MethodPost, body)
+		if w.Code != http.StatusAccepted {
+			t.Fatalf("event %d: expected 202, got %d body=%s", i, w.Code, w.Body.String())
+		}
+	}
+
+	w := doIngest(t, hs, http.MethodPost, body)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+		Meta struct {
+			MessageCode string `json:"messageCode"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode resp: %v", err)
+	}
+	if resp.Meta.MessageCode != "TENANT_QUOTA_EXCEEDED" {
+		t.Errorf("expected TENANT_QUOTA_EXCEEDED, got %q", resp.Meta.MessageCode)
 	}
 }

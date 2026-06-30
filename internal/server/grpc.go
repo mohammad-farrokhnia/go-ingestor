@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -83,6 +84,9 @@ func (s *GrpcServer) Ingest(ctx context.Context, req *pb.IngestRequest) (*pb.Ing
 
 	err := s.ingestor.Push(req)
 	if err != nil {
+		if errors.Is(err, ingestor.ErrTenantQuotaExceeded) {
+			return &pb.IngestResponse{Status: "DROPPED", Error: "tenant quota exceeded"}, nil
+		}
 		return &pb.IngestResponse{Status: "DROPPED", Error: "buffer full"}, nil
 	}
 
