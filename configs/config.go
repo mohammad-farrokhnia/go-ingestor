@@ -23,6 +23,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	cfg.applyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
