@@ -52,4 +52,11 @@ shutdown:
   timeout: "30s"   # max time to drain buffer before forcing exit
 
 tenancy:
-  enabled: false   # when true, every event must carry a non-empty tenant_id
+  enabled: false              # when true, every event must carry a non-empty tenant_id
+  default_rate_limit: 0       # events/sec for tenants without an explicit limit; 0 = unlimited
+  tenants:                    # per-tenant overrides (only consulted when enabled: true)
+    - id: "acme"
+      rate_limit: 5000        # events/sec; 0 = inherit default_rate_limit
+      kafka_topic: "events.acme"   # routes this tenant's events to a dedicated topic
+    - id: "globex"
+      rate_limit: 100
