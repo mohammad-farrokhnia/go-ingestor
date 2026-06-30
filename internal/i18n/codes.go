@@ -9,6 +9,7 @@ const (
 	MsgDisabled         MessageCode = "DISABLED"
 	MsgInvalidJSON      MessageCode = "INVALID_JSON"
 	MsgMissingEventID   MessageCode = "MISSING_EVENT_ID"
+	MsgMissingTenantID  MessageCode = "MISSING_TENANT_ID"
 	MsgMethodNotAllowed MessageCode = "METHOD_NOT_ALLOWED"
 	MsgNotConfigured    MessageCode = "NOT_CONFIGURED"
 
@@ -26,6 +27,9 @@ const (
 	MsgDLQStatsFailed      MessageCode = "DLQ_STATS_FAILED"
 	MsgDLQNotReplayable    MessageCode = "DLQ_NOT_REPLAYABLE"
 	MsgDLQStatsUnsupported MessageCode = "DLQ_STATS_UNSUPPORTED"
+
+	// Admin auth.
+	MsgUnauthorized MessageCode = "UNAUTHORIZED"
 
 	// Generic.
 	MsgInternalError MessageCode = "INTERNAL_ERROR"

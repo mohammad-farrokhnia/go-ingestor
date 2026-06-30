@@ -69,114 +69,113 @@ func (d *FileDLQ) Name() string {
 	return "FileDLQ"
 }
 
-
 func (d *FileDLQ) DrainEntries() ([]DLQEntry, error) {
-    d.mu.Lock()
-    defer d.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-    if err := d.file.Sync(); err != nil {
-        return nil, fmt.Errorf("dlq drain: sync: %w", err)
-    }
+	if err := d.file.Sync(); err != nil {
+		return nil, fmt.Errorf("dlq drain: sync: %w", err)
+	}
 
-    files, err := filepath.Glob(filepath.Join(d.dir, "dlq-*.jsonl"))
-    if err != nil {
-        return nil, fmt.Errorf("dlq drain: glob: %w", err)
-    }
+	files, err := filepath.Glob(filepath.Join(d.dir, "dlq-*.jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("dlq drain: glob: %w", err)
+	}
 
-    var entries []DLQEntry
-    for _, f := range files {
-        fe, err := readDLQFile(f)
-        if err != nil {
-            return nil, fmt.Errorf("dlq drain: read %s: %w", f, err)
-        }
-        entries = append(entries, fe...)
-    }
+	var entries []DLQEntry
+	for _, f := range files {
+		fe, err := readDLQFile(f)
+		if err != nil {
+			return nil, fmt.Errorf("dlq drain: read %s: %w", f, err)
+		}
+		entries = append(entries, fe...)
+	}
 
-    if err := d.file.Close(); err != nil {
-        return nil, fmt.Errorf("dlq drain: close before archive: %w", err)
-    }
-    for _, f := range files {
-        if err := os.Rename(f, f+".replayed"); err != nil {
-            slog.Warn("DLQ drain: could not archive file", "file", f, "err", err)
-        }
-    }
+	if err := d.file.Close(); err != nil {
+		return nil, fmt.Errorf("dlq drain: close before archive: %w", err)
+	}
+	for _, f := range files {
+		if err := os.Rename(f, f+".replayed"); err != nil {
+			slog.Warn("DLQ drain: could not archive file", "file", f, "err", err)
+		}
+	}
 
-    newPath := filepath.Join(d.dir, fmt.Sprintf("dlq-%s.jsonl", time.Now().Format("2006-01-02")))
-    newFile, err := os.OpenFile(newPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-    if err != nil {
-        return nil, fmt.Errorf("dlq drain: reopen after archive: %w", err)
-    }
-    d.file = newFile
+	newPath := filepath.Join(d.dir, fmt.Sprintf("dlq-%s.jsonl", time.Now().Format("2006-01-02")))
+	newFile, err := os.OpenFile(newPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("dlq drain: reopen after archive: %w", err)
+	}
+	d.file = newFile
 
-    slog.Info("DLQ drained", "entries", len(entries), "files", len(files))
-    return entries, nil
+	slog.Info("DLQ drained", "entries", len(entries), "files", len(files))
+	return entries, nil
 }
 
 func (d *FileDLQ) Stats() (DLQStats, error) {
-    d.mu.Lock()
-    defer d.mu.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-    if err := d.file.Sync(); err != nil {
-        return DLQStats{}, fmt.Errorf("dlq stats: sync: %w", err)
-    }
+	if err := d.file.Sync(); err != nil {
+		return DLQStats{}, fmt.Errorf("dlq stats: sync: %w", err)
+	}
 
-    files, err := filepath.Glob(filepath.Join(d.dir, "dlq-*.jsonl"))
-    if err != nil {
-        return DLQStats{}, fmt.Errorf("dlq stats: glob: %w", err)
-    }
+	files, err := filepath.Glob(filepath.Join(d.dir, "dlq-*.jsonl"))
+	if err != nil {
+		return DLQStats{}, fmt.Errorf("dlq stats: glob: %w", err)
+	}
 
-    stats := DLQStats{Files: []DLQFileInfo{}} // non-nil slice for clean JSON
-    for _, f := range files {
-        info, err := os.Stat(f)
-        if err != nil {
-            continue
-        }
-        entries, err := readDLQFile(f)
-        if err != nil {
-            continue
-        }
-        stats.Files = append(stats.Files, DLQFileInfo{
-            Name:      filepath.Base(f),
-            SizeBytes: info.Size(),
-            Entries:   len(entries),
-        })
-        stats.TotalEntries += len(entries)
-        stats.TotalBytes += info.Size()
-    }
-    return stats, nil
+	stats := DLQStats{Files: []DLQFileInfo{}}
+	for _, f := range files {
+		info, err := os.Stat(f)
+		if err != nil {
+			continue
+		}
+		entries, err := readDLQFile(f)
+		if err != nil {
+			continue
+		}
+		stats.Files = append(stats.Files, DLQFileInfo{
+			Name:      filepath.Base(f),
+			SizeBytes: info.Size(),
+			Entries:   len(entries),
+		})
+		stats.TotalEntries += len(entries)
+		stats.TotalBytes += info.Size()
+	}
+	return stats, nil
 }
 
 func readDLQFile(path string) ([]DLQEntry, error) {
-    f, err := os.Open(path)
-    if err != nil {
-        return nil, err
-    }
-    defer closeOsFile(f)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer closeOsFile(f)
 
-    const maxLine = 2 * 1024 * 1024
-    scanner := bufio.NewScanner(f)
-    scanner.Buffer(make([]byte, maxLine), maxLine)
+	const maxLine = 2 * 1024 * 1024
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, maxLine), maxLine)
 
-    var entries []DLQEntry
-    for scanner.Scan() {
-        line := strings.TrimSpace(scanner.Text())
-        if line == "" {
-            continue
-        }
-        var entry DLQEntry
-        if err := json.Unmarshal([]byte(line), &entry); err != nil {
-            slog.Warn("DLQ: skipping malformed entry", "file", path, "err", err)
-            continue
-        }
-        entries = append(entries, entry)
-    }
-    return entries, scanner.Err()
+	var entries []DLQEntry
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var entry DLQEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			slog.Warn("DLQ: skipping malformed entry", "file", path, "err", err)
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries, scanner.Err()
 }
 
-func closeOsFile(f *os.File){
-	err:= f.Close()
-	if err!=nil {
-		slog.Error("FailedToCloseTheFile error:", "err",err)
+func closeOsFile(f *os.File) {
+	err := f.Close()
+	if err != nil {
+		slog.Error("FailedToCloseTheFile error:", "err", err)
 	}
 }
 

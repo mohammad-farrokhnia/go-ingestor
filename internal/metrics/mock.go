@@ -43,5 +43,5 @@ func (m *MockRecorder) Reset() {
 	m.workerPanics.Store(0)
 }
 
-func (m *MockRecorder) IncWorkerPanics() { m.workerPanics.Add(1) }
+func (m *MockRecorder) IncWorkerPanics()           { m.workerPanics.Add(1) }
 func (m *MockRecorder) GetWorkerPanicCount() int64 { return m.workerPanics.Load() }

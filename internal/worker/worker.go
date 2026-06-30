@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"log/slog"
-	"os"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -18,89 +17,106 @@ import (
 
 const maxRetries = 3
 
+const drainFlushTimeout = 5 * time.Second
+
 var (
-    maxRestarts     = 5
-    restartCooldown = 1 * time.Second
+	maxRestarts     = 5
+	restartCooldown = 1 * time.Second
 )
 
-func Start(ctx context.Context, numWorkers int, buffer <-chan *pb.IngestRequest, batchSize int, batchTimeoutStr string, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) *sync.WaitGroup {
-	timeout, err := time.ParseDuration(batchTimeoutStr)
-	if err != nil {
-		slog.Error("Invalid batch_timeout", "err", err)
-		os.Exit(1)
+type Config struct {
+	NumWorkers   int
+	BatchSize    int
+	BatchTimeout time.Duration
+}
+
+type Deps struct {
+	Buffer   <-chan *pb.IngestRequest
+	Sinks    []sinks.Sink
+	Recorder metrics.Recorder
+	DLQ      dlq.DeadLetterQueue
+	WAL      wal.WAL
+	Tracker  *wal.SeqTracker
+}
+
+func Start(ctx context.Context, cfg Config, deps Deps) *sync.WaitGroup {
+	if deps.WAL == nil {
+		deps.WAL = wal.NewNoOpWAL()
+	}
+	if deps.Tracker == nil {
+		deps.Tracker = wal.NewSeqTracker()
 	}
 
-	slog.Info("Starting workers", "count", numWorkers, "batch_size", batchSize, "timeout", timeout)
+	slog.Info("Starting workers", "count", cfg.NumWorkers, "batch_size", cfg.BatchSize, "timeout", cfg.BatchTimeout)
 
 	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+	for i := 0; i < cfg.NumWorkers; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			runWorkerWithRestart(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq, w, tracker)
+			runWorkerWithRestart(ctx, id, cfg, deps)
 		}(i)
 	}
 	return &wg
 }
 
-func runWorkerWithRestart(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) {
+func runWorkerWithRestart(ctx context.Context, id int, cfg Config, deps Deps) {
 	for attempt := 0; attempt < maxRestarts; attempt++ {
-        clean := runWorkerGuarded(ctx, id, buffer, batchSize, timeout, sinkList, recorder, dlq, w, tracker)
-        if clean {
-            return
-        }
+		clean := runWorkerGuarded(ctx, id, cfg, deps)
+		if clean {
+			return
+		}
 
-        if recorder != nil {
-            recorder.IncWorkerPanics()
-        }
+		if deps.Recorder != nil {
+			deps.Recorder.IncWorkerPanics()
+		}
 
-        remaining := maxRestarts - attempt - 1
-        if remaining == 0 {
-            slog.Error("Worker stopped permanently: exceeded max restarts",
-                "worker", id,
-                "max_restarts", maxRestarts,
-            )
-            return
-        }
+		remaining := maxRestarts - attempt - 1
+		if remaining == 0 {
+			slog.Error("Worker stopped permanently: exceeded max restarts",
+				"worker", id,
+				"max_restarts", maxRestarts,
+			)
+			return
+		}
 
-        slog.Warn("Worker will restart after panic cooldown",
-            "worker", id,
-            "attempt", attempt+1,
-            "max_restarts", maxRestarts,
-            "remaining_restarts", remaining,
-            "cooldown", restartCooldown,
-        )
+		slog.Warn("Worker will restart after panic cooldown",
+			"worker", id,
+			"attempt", attempt+1,
+			"max_restarts", maxRestarts,
+			"remaining_restarts", remaining,
+			"cooldown", restartCooldown,
+		)
 
 		select {
-        case <-ctx.Done():
-            return
-        case <-time.After(restartCooldown):
-        }
+		case <-ctx.Done():
+			return
+		case <-time.After(restartCooldown):
+		}
 
-        slog.Info("Restarting worker", "worker", id, "attempt", attempt+1)
-    }
+		slog.Info("Restarting worker", "worker", id, "attempt", attempt+1)
+	}
 }
 
-func runWorkerGuarded(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, d dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) (exited bool) {
-    defer func() {
-        if r := recover(); r != nil {
-            slog.Error("Worker panic recovered",
-                "worker", id,
-                "panic", r,
-                "stack", string(debug.Stack()),
-            )
-        }
-    }()
+func runWorkerGuarded(ctx context.Context, id int, cfg Config, deps Deps) (exited bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Worker panic recovered",
+				"worker", id,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
 
-    runWorker(ctx, id, buffer, batchSize, timeout, sinkList, recorder, d, w, tracker)
-    return true // only reached on clean exit
+	runWorker(ctx, id, cfg, deps)
+	return true
 }
 
-func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, batchSize int, timeout time.Duration, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) {
+func runWorker(ctx context.Context, id int, cfg Config, deps Deps) {
+	batch := make([]*pb.IngestRequest, 0, cfg.BatchSize)
 
-	batch := make([]*pb.IngestRequest, 0, batchSize)
-
-	ticker := time.NewTicker(timeout)
+	ticker := time.NewTicker(cfg.BatchTimeout)
 	defer ticker.Stop()
 
 	for {
@@ -108,40 +124,45 @@ func runWorker(ctx context.Context, id int, buffer <-chan *pb.IngestRequest, bat
 		case <-ctx.Done():
 			if len(batch) > 0 {
 				slog.Info("Shutdown: flushing final batch", "worker", id, "events", len(batch))
-				flush(id, batch, sinkList, recorder, dlq, w, tracker)
+				drainFlush(id, batch, deps)
 			}
 			slog.Info("Worker stopped", "worker", id)
 			return
 
-		case event, ok := <-buffer:
+		case event, ok := <-deps.Buffer:
 			if !ok {
 				if len(batch) > 0 {
-					flush(id, batch, sinkList, recorder, dlq, w, tracker)
+					drainFlush(id, batch, deps)
 				}
 				return
 			}
 			batch = append(batch, event)
 
-			if len(batch) >= batchSize {
-				flush(id, batch, sinkList, recorder, dlq, w, tracker)
-				batch = make([]*pb.IngestRequest, 0, batchSize)
-				ticker.Reset(timeout)
+			if len(batch) >= cfg.BatchSize {
+				flush(ctx, id, batch, deps)
+				batch = make([]*pb.IngestRequest, 0, cfg.BatchSize)
+				ticker.Reset(cfg.BatchTimeout)
 			}
 
 		case <-ticker.C:
 			if len(batch) > 0 {
-				flush(id, batch, sinkList, recorder, dlq, w, tracker)
-				batch = make([]*pb.IngestRequest, 0, batchSize)
+				flush(ctx, id, batch, deps)
+				batch = make([]*pb.IngestRequest, 0, cfg.BatchSize)
 			}
 		}
 	}
 }
 
-func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recorder metrics.Recorder, dlq dlq.DeadLetterQueue, w wal.WAL, tracker *wal.SeqTracker) {
-	ctx := context.Background()
+func drainFlush(workerID int, batch []*pb.IngestRequest, deps Deps) {
+	ctx, cancel := context.WithTimeout(context.Background(), drainFlushTimeout)
+	defer cancel()
+	flush(ctx, workerID, batch, deps)
+}
+
+func flush(ctx context.Context, workerID int, batch []*pb.IngestRequest, deps Deps) {
 	start := time.Now()
 	allSucceeded := true
-	for _, sink := range sinkList {
+	for _, sink := range deps.Sinks {
 		if err := writeWithRetry(ctx, sink, batch); err != nil {
 			allSucceeded = false
 			slog.Error("Sink write failed, routing to DLQ",
@@ -152,25 +173,25 @@ func flush(workerID int, batch []*pb.IngestRequest, sinkList []sinks.Sink, recor
 			)
 
 			for _, event := range batch {
-				if dlqErr := dlq.Push(ctx, event, sink.Name(), err); dlqErr != nil {
+				if dlqErr := deps.DLQ.Push(ctx, event, sink.Name(), err); dlqErr != nil {
 					slog.Error("Failed to write to DLQ", "worker", workerID, "err", dlqErr)
 				}
 			}
 		}
 	}
 
-	if allSucceeded && w != nil && tracker != nil {
+	if allSucceeded {
 		for _, event := range batch {
-			if seqNum, ok := tracker.LoadAndDelete(event.EventId); ok {
-				if err := w.Acknowledge(seqNum); err != nil {
+			if seqNum, ok := deps.Tracker.LoadAndDelete(event.EventId); ok {
+				if err := deps.WAL.Acknowledge(seqNum); err != nil {
 					slog.Error("WAL acknowledge failed", "worker", workerID, "seq", seqNum, "err", err)
 				}
 			}
 		}
 	}
 
-	if recorder != nil {
-		recorder.ObserveBatchFlush(time.Since(start).Seconds())
+	if deps.Recorder != nil {
+		deps.Recorder.ObserveBatchFlush(time.Since(start).Seconds())
 	}
 
 	slog.Debug("Flushed batch", "worker", workerID, "events", len(batch))

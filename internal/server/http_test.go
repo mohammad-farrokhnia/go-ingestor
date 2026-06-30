@@ -264,7 +264,7 @@ func TestHandleDLQReplay_WrongMethod(t *testing.T) {
 
 func TestHandleDLQReplay_NonReplayableDLQ_Returns501(t *testing.T) {
 	hs := newTestServer(t, true, 10)
-	hs.SetDLQ(dlq.NewNoOpDLQ()) // NoOpDLQ does not implement Replayable
+	hs.SetDLQ(dlq.NewNoOpDLQ())
 
 	w := httptest.NewRecorder()
 	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
@@ -302,5 +302,80 @@ func TestHandleDLQStats(t *testing.T) {
 	}
 	if env.Data.TotalEntries != 2 {
 		t.Errorf("expected 2 entries, got %d", env.Data.TotalEntries)
+	}
+}
+
+func TestHandleDLQReplay_AdminToken(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetDLQ(newTestFileDLQ(t))
+	hs.SetAdminToken("s3cret")
+
+	w := httptest.NewRecorder()
+	hs.handleDLQReplay(w, httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", w.Code)
+	}
+
+	w = httptest.NewRecorder()
+	rWrong := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	rWrong.Header.Set("Authorization", "Bearer nope")
+	hs.handleDLQReplay(w, rWrong)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 with wrong token, got %d", w.Code)
+	}
+
+	w = httptest.NewRecorder()
+	rOK := httptest.NewRequest(http.MethodPost, "/admin/dlq/replay", nil)
+	rOK.Header.Set("Authorization", "Bearer s3cret")
+	hs.handleDLQReplay(w, rOK)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with correct token, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleIngest_TenancyRequired_MissingTenant(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetTenancyRequired(true)
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1","source":"x"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode resp: %v", err)
+	}
+	if resp.Error.Code != "MISSING_TENANT_ID" {
+		t.Errorf("expected error code MISSING_TENANT_ID, got %q", resp.Error.Code)
+	}
+}
+
+func TestHandleIngest_TenancyRequired_ThreadsTenantID(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+	hs.SetTenancyRequired(true)
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1","tenant_id":"acme"}`)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", w.Code, w.Body.String())
+	}
+	req := <-hs.ingestor.Buf().Chan()
+	if req.TenantId != "acme" {
+		t.Errorf("expected TenantId=acme in buffered event, got %q", req.TenantId)
+	}
+}
+
+func TestHandleIngest_TenancyDisabled_TenantOptional(t *testing.T) {
+	hs := newTestServer(t, true, 10)
+
+	w := doIngest(t, hs, http.MethodPost, `{"event_id":"e1"}`)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 when tenancy disabled, got %d body=%s", w.Code, w.Body.String())
 	}
 }

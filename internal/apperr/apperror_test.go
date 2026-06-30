@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-
 func TestIsTransient_TransientSinkError(t *testing.T) {
 	err := NewTransient("HTTPSink", errors.New("connection reset"))
 	if !IsTransient(err) {
@@ -52,7 +51,6 @@ func TestIsTransient_NilError(t *testing.T) {
 	}
 }
 
-
 func TestSinkError_ErrorString(t *testing.T) {
 	cause := errors.New("timeout after 5s")
 	se := NewTransient("HTTPSink", cause)
@@ -78,7 +76,6 @@ func TestSinkError_Fields(t *testing.T) {
 		t.Errorf("Class = %v, want Permanent", se.Class)
 	}
 }
-
 
 func TestClassifyHTTPStatus(t *testing.T) {
 	cases := []struct {

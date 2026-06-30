@@ -7,6 +7,7 @@ var enMessages = map[MessageCode]string{
 	MsgDisabled:         "Ingest is currently disabled.",
 	MsgInvalidJSON:      "Invalid JSON in request body.",
 	MsgMissingEventID:   "Field 'event_id' is required.",
+	MsgMissingTenantID:  "Field 'tenant_id' is required.",
 	MsgMethodNotAllowed: "Method not allowed.",
 	MsgNotConfigured:    "Ingestor is not configured.",
 
@@ -24,6 +25,9 @@ var enMessages = map[MessageCode]string{
 	MsgDLQStatsFailed:      "Failed to retrieve DLQ stats.",
 	MsgDLQNotReplayable:    "Configured DLQ backend does not support replay.",
 	MsgDLQStatsUnsupported: "Configured DLQ backend does not support stats.",
+
+	// Admin auth.
+	MsgUnauthorized: "Unauthorized.",
 
 	// Generic.
 	MsgInternalError: "Internal server error.",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	config "github.com/mohammad-farrokhnia/go-ingestor/configs"
@@ -18,6 +19,7 @@ type RedisBuffer struct {
 	ch     chan *pb.IngestRequest
 	ctx    context.Context
 	cancel context.CancelFunc
+	pollWg sync.WaitGroup
 }
 
 func NewRedisBuffer(cfg config.RedisBufferConfig, chanSize int) (*RedisBuffer, error) {
@@ -47,6 +49,7 @@ func NewRedisBuffer(cfg config.RedisBufferConfig, chanSize int) (*RedisBuffer, e
 		cancel: cancel,
 	}
 
+	rb.pollWg.Add(1)
 	go rb.poll()
 
 	slog.Info("Redis buffer initialized", "addr", cfg.Addr, "key", key)
@@ -67,6 +70,7 @@ func (b *RedisBuffer) Chan() <-chan *pb.IngestRequest {
 
 func (b *RedisBuffer) Close() error {
 	b.cancel()
+	b.pollWg.Wait()
 	close(b.ch)
 	return b.client.Close()
 }
@@ -80,6 +84,7 @@ func (b *RedisBuffer) Len() int {
 }
 
 func (b *RedisBuffer) poll() {
+	defer b.pollWg.Done()
 	for {
 		select {
 		case <-b.ctx.Done():

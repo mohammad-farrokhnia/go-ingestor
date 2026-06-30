@@ -5,5 +5,5 @@ type Recorder interface {
 	IncEventsDropped()
 	ObserveBatchFlush(seconds float64)
 	SetBufferSize(size int)
-	IncWorkerPanics() 
+	IncWorkerPanics()
 }

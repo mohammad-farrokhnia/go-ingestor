@@ -56,10 +56,10 @@ func TestValidate_Errors(t *testing.T) {
 			c.Sinks.Active = []SinkType{SinkHTTP}
 		}, "http.url"},
 		{"dlq file missing dir", func(c *Config) {
-			c.DLQ = DLQConfig{Enabled: true, Type: string(DLQTypeFile)}
+			c.DLQ = DLQConfig{Enabled: true, Type: DLQTypeFile}
 		}, "dlq.file.dir"},
 		{"dlq kafka missing topic", func(c *Config) {
-			c.DLQ = DLQConfig{Enabled: true, Type: string(DLQTypeKafka), Kafka: KafkaDLQConfig{Brokers: []string{"x"}}}
+			c.DLQ = DLQConfig{Enabled: true, Type: DLQTypeKafka, Kafka: KafkaDLQConfig{Brokers: []string{"x"}}}
 		}, "dlq.kafka.topic"},
 		{"dlq unknown type", func(c *Config) {
 			c.DLQ = DLQConfig{Enabled: true, Type: "weird"}

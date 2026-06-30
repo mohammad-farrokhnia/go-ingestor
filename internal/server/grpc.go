@@ -21,6 +21,7 @@ type GrpcServer struct {
 	listener      net.Listener
 	addr          string
 	ingestEnabled atomic.Bool
+	requireTenant atomic.Bool
 }
 
 func NewGrpcServer(port int, svc *ingestor.Service, rec metrics.Recorder, ingestEnabled bool) (*GrpcServer, error) {
@@ -44,6 +45,10 @@ func NewGrpcServer(port int, svc *ingestor.Service, rec metrics.Recorder, ingest
 
 func (s *GrpcServer) SetIngestEnabled(enabled bool) {
 	s.ingestEnabled.Store(enabled)
+}
+
+func (s *GrpcServer) SetTenancyRequired(required bool) {
+	s.requireTenant.Store(required)
 }
 
 func (s *GrpcServer) Start() error {
@@ -71,6 +76,9 @@ func (s *GrpcServer) Ingest(ctx context.Context, req *pb.IngestRequest) (*pb.Ing
 	}
 	if req.EventId == "" {
 		return &pb.IngestResponse{Status: "ERROR", Error: "missing event_id"}, nil
+	}
+	if s.requireTenant.Load() && req.TenantId == "" {
+		return &pb.IngestResponse{Status: "ERROR", Error: "missing tenant_id"}, nil
 	}
 
 	err := s.ingestor.Push(req)

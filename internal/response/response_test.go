@@ -95,7 +95,9 @@ func TestNewMeta_PropagatesIncomingRequestID(t *testing.T) {
 	if got := w.Header().Get("X-Request-Id"); got != "caller-supplied-id" {
 		t.Errorf("response X-Request-Id = %q, want caller-supplied-id", got)
 	}
-	var body struct{ Meta Meta `json:"meta"` }
+	var body struct {
+		Meta Meta `json:"meta"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
@@ -116,7 +118,9 @@ func TestNewMeta_GeneratesRequestIDWhenAbsent(t *testing.T) {
 	if headerID == "" {
 		t.Error("expected a generated X-Request-Id header")
 	}
-	var body struct{ Meta Meta `json:"meta"` }
+	var body struct {
+		Meta Meta `json:"meta"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
@@ -134,7 +138,9 @@ func TestJSON_RespectsAcceptLanguage(t *testing.T) {
 
 	JSON(w, req, http.StatusAccepted, nil, i18n.MsgAccepted)
 
-	var body struct{ Meta Meta `json:"meta"` }
+	var body struct {
+		Meta Meta `json:"meta"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}

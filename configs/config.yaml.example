@@ -2,6 +2,7 @@ server:
   grpc_port: 50051
   http_port: 8080
   ingest_enabled: true
+  admin_token: ""   # bearer token for /admin/* endpoints; empty = unauthenticated
 
 ingestor:
   buffer_size: 1000
@@ -49,3 +50,6 @@ logging:
 
 shutdown:
   timeout: "30s"   # max time to drain buffer before forcing exit
+
+tenancy:
+  enabled: false   # when true, every event must carry a non-empty tenant_id
