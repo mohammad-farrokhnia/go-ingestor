@@ -133,7 +133,7 @@ func TestBuildSink_Unknown(t *testing.T) {
 func TestBuildMultiSinks_Empty(t *testing.T) {
 	cfg := config.SinksConfig{}
 
-	_, err := BuildMultiSinks([]config.SinkType{}, cfg)
+	_, err := BuildMultiSinks([]config.SinkType{}, cfg, nil)
 
 	if err == nil {
 		t.Fatal("expected error for empty sink list")
@@ -143,7 +143,7 @@ func TestBuildMultiSinks_Empty(t *testing.T) {
 func TestBuildMultiSinks_Single(t *testing.T) {
 	cfg := config.SinksConfig{}
 
-	sinks, err := BuildMultiSinks([]config.SinkType{config.SinkLog}, cfg)
+	sinks, err := BuildMultiSinks([]config.SinkType{config.SinkLog}, cfg, nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -161,7 +161,7 @@ func TestBuildMultiSinks_Multiple(t *testing.T) {
 		},
 	}
 
-	sinks, err := BuildMultiSinks([]config.SinkType{config.SinkLog, config.SinkHTTP}, cfg)
+	sinks, err := BuildMultiSinks([]config.SinkType{config.SinkLog, config.SinkHTTP}, cfg, nil)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -174,7 +174,7 @@ func TestBuildMultiSinks_Multiple(t *testing.T) {
 func TestBuildMultiSinks_FailsOnInvalid(t *testing.T) {
 	cfg := config.SinksConfig{}
 
-	_, err := BuildMultiSinks([]config.SinkType{config.SinkLog, config.SinkType("invalid")}, cfg)
+	_, err := BuildMultiSinks([]config.SinkType{config.SinkLog, config.SinkType("invalid")}, cfg, nil)
 
 	if err == nil {
 		t.Fatal("expected error when one sink is invalid")

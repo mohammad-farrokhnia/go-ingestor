@@ -5,23 +5,29 @@ import "testing"
 func TestMockRecorder_IncEventsReceived(t *testing.T) {
 	m := NewMock()
 
-	m.IncEventsReceived()
-	m.IncEventsReceived()
-	m.IncEventsReceived()
+	m.IncEventsReceived("_single")
+	m.IncEventsReceived("acme")
+	m.IncEventsReceived("acme")
 
 	if m.GetEventsReceived() != 3 {
 		t.Errorf("expected 3, got %d", m.GetEventsReceived())
+	}
+	if m.GetEventsReceivedByTenant("acme") != 2 {
+		t.Errorf("expected 2 for acme, got %d", m.GetEventsReceivedByTenant("acme"))
 	}
 }
 
 func TestMockRecorder_IncEventsDropped(t *testing.T) {
 	m := NewMock()
 
-	m.IncEventsDropped()
-	m.IncEventsDropped()
+	m.IncEventsDropped("acme")
+	m.IncEventsDropped("acme")
 
 	if m.GetEventsDropped() != 2 {
 		t.Errorf("expected 2, got %d", m.GetEventsDropped())
+	}
+	if m.GetEventsDroppedByTenant("acme") != 2 {
+		t.Errorf("expected 2 dropped for acme, got %d", m.GetEventsDroppedByTenant("acme"))
 	}
 }
 
@@ -55,8 +61,8 @@ func TestMockRecorder_SetBufferSize(t *testing.T) {
 func TestMockRecorder_Reset(t *testing.T) {
 	m := NewMock()
 
-	m.IncEventsReceived()
-	m.IncEventsDropped()
+	m.IncEventsReceived("_single")
+	m.IncEventsDropped("_single")
 	m.ObserveBatchFlush(1.0)
 	m.SetBufferSize(100)
 

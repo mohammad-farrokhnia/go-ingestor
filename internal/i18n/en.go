@@ -4,6 +4,7 @@ var enMessages = map[MessageCode]string{
 	// Ingest.
 	MsgAccepted:         "Event accepted.",
 	MsgDropped:          "Buffer is full. Event dropped.",
+	MsgTenantQuota:      "Tenant rate limit exceeded. Event dropped.",
 	MsgDisabled:         "Ingest is currently disabled.",
 	MsgInvalidJSON:      "Invalid JSON in request body.",
 	MsgMissingEventID:   "Field 'event_id' is required.",

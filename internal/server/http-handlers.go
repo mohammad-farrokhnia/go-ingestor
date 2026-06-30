@@ -3,12 +3,14 @@ package server
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/mohammad-farrokhnia/ingestor/internal/dlq"
 	"github.com/mohammad-farrokhnia/ingestor/internal/i18n"
+	"github.com/mohammad-farrokhnia/ingestor/internal/ingestor"
 	"github.com/mohammad-farrokhnia/ingestor/internal/response"
 	pb "github.com/mohammad-farrokhnia/ingestor/proto/ingestor/v1"
 )
@@ -91,6 +93,10 @@ func (s *HttpServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		TenantId:  body.TenantID,
 	}
 	if err := s.ingestor.Push(req); err != nil {
+		if errors.Is(err, ingestor.ErrTenantQuotaExceeded) {
+			response.Error(w, r, http.StatusTooManyRequests, i18n.MsgTenantQuota)
+			return
+		}
 		response.Error(w, r, http.StatusServiceUnavailable, i18n.MsgDropped)
 		return
 	}

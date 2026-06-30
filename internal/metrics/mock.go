@@ -1,6 +1,9 @@
 package metrics
 
-import "sync/atomic"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 type MockRecorder struct {
 	eventsReceived  atomic.Int64
@@ -8,18 +11,43 @@ type MockRecorder struct {
 	batchFlushCount atomic.Int64
 	bufferSize      atomic.Int64
 	workerPanics    atomic.Int64
+
+	mu               sync.Mutex
+	receivedByTenant map[string]int64
+	droppedByTenant  map[string]int64
 }
 
 func NewMock() *MockRecorder {
-	return &MockRecorder{}
+	return &MockRecorder{
+		receivedByTenant: make(map[string]int64),
+		droppedByTenant:  make(map[string]int64),
+	}
 }
 
-func (m *MockRecorder) IncEventsReceived() {
+func (m *MockRecorder) IncEventsReceived(tenant string) {
 	m.eventsReceived.Add(1)
+	m.mu.Lock()
+	m.receivedByTenant[tenant]++
+	m.mu.Unlock()
 }
 
-func (m *MockRecorder) IncEventsDropped() {
+func (m *MockRecorder) IncEventsDropped(tenant string) {
 	m.eventsDropped.Add(1)
+	m.mu.Lock()
+	m.droppedByTenant[tenant]++
+	m.mu.Unlock()
+}
+
+func (m *MockRecorder) GetEventsReceivedByTenant(tenant string) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.receivedByTenant[tenant]
+}
+
+func (m *MockRecorder) GetEventsDroppedByTenant(tenant string) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.droppedByTenant[tenant]
 }
 
 func (m *MockRecorder) ObserveBatchFlush(seconds float64) {
@@ -41,6 +69,10 @@ func (m *MockRecorder) Reset() {
 	m.batchFlushCount.Store(0)
 	m.bufferSize.Store(0)
 	m.workerPanics.Store(0)
+	m.mu.Lock()
+	m.receivedByTenant = make(map[string]int64)
+	m.droppedByTenant = make(map[string]int64)
+	m.mu.Unlock()
 }
 
 func (m *MockRecorder) IncWorkerPanics()           { m.workerPanics.Add(1) }

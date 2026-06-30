@@ -6,13 +6,16 @@ import (
 	config "github.com/mohammad-farrokhnia/ingestor/configs"
 )
 
-func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig) ([]Sink, error) {
+func BuildMultiSinks(activeNames []config.SinkType, cfg config.SinksConfig, router TopicRouter) ([]Sink, error) {
 	var result []Sink
 
 	for _, name := range activeNames {
 		sink, err := BuildSink(name, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build sink %q: %w", name, err)
+		}
+		if ks, ok := sink.(*KafkaSink); ok {
+			ks.router = router
 		}
 		result = append(result, newCircuitBreakerSink(sink))
 	}

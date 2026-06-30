@@ -6,9 +6,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const tenantLabel = "tenant"
+
 type prometheusRecorder struct {
-	eventsReceivedTotal       prometheus.Counter
-	eventsDroppedTotal        prometheus.Counter
+	eventsReceivedTotal       *prometheus.CounterVec
+	eventsDroppedTotal        *prometheus.CounterVec
 	batchFlushDurationSeconds prometheus.Histogram
 	bufferCurrentSize         prometheus.Gauge
 	workerPanicsTotal         prometheus.Counter
@@ -22,14 +24,14 @@ var (
 func newPrometheusRecorder() *prometheusRecorder {
 	promOnce.Do(func() {
 		promInstance = &prometheusRecorder{
-			eventsReceivedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			eventsReceivedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "events_received_total",
 				Help: "Total number of events received by the ingestor.",
-			}),
-			eventsDroppedTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			}, []string{tenantLabel}),
+			eventsDroppedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "events_dropped_total",
-				Help: "Total number of events dropped (buffer full, invalid, etc.).",
-			}),
+				Help: "Total number of events dropped (buffer full, invalid, quota, etc.).",
+			}, []string{tenantLabel}),
 			batchFlushDurationSeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
 				Name:    "batch_flush_duration_seconds",
 				Help:    "Duration of batch flush operations in seconds.",
@@ -57,12 +59,12 @@ func newPrometheusRecorder() *prometheusRecorder {
 	return promInstance
 }
 
-func (r *prometheusRecorder) IncEventsReceived() {
-	r.eventsReceivedTotal.Inc()
+func (r *prometheusRecorder) IncEventsReceived(tenant string) {
+	r.eventsReceivedTotal.WithLabelValues(tenant).Inc()
 }
 
-func (r *prometheusRecorder) IncEventsDropped() {
-	r.eventsDroppedTotal.Inc()
+func (r *prometheusRecorder) IncEventsDropped(tenant string) {
+	r.eventsDroppedTotal.WithLabelValues(tenant).Inc()
 }
 
 func (r *prometheusRecorder) ObserveBatchFlush(seconds float64) {
