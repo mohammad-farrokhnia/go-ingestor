@@ -58,7 +58,7 @@ A high-throughput event ingestion gateway written in Go 1.24. Accepts fire-and-f
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26
 - `protoc` + `protoc-gen-go` (only needed to regenerate proto files)
 - Docker (optional — for Kafka/Redis infrastructure)
 
